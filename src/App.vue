@@ -4,6 +4,8 @@ import { Scene } from '@babylonjs/core/scene';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
+import { OdsImage } from './modules/odsImage';
+
 export default {
     data() {
         return {
@@ -48,6 +50,10 @@ export default {
         camera.zfar = 100.0;
 
 
+        // Create ODS image contruction object
+        let ods_image = new OdsImage(this.gl, '/data/office_dasp.exr', () => {
+            console.log(ods_image.exr);
+        });
 
         // Render every frame
         engine.runRenderLoop(() => {

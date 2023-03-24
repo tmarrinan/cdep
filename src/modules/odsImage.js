@@ -6,6 +6,7 @@ class OdsImage {
         this.gl = gl;
         this.dasp_shader = {program: null, uniforms: null};
         this.dep_shader = {program: null, uniforms: null};
+        this.textures = {left: {color: null, depth: null}, right: {color: null, depth: null}};
         this.vertex_position_attrib = 0;
         this.vertex_texcoord_attrib = 1;
 
@@ -34,8 +35,93 @@ class OdsImage {
             this.glslLinkShaderProgram(this.dep_shader.program);
             this.dep_shader.uniforms = this.glslGetShaderProgramUniforms(this.dep_shader.program);
 
+            // Initialize GL settings - need to set/restore each frame?
+            this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            this.gl.enable(gl.DEPTH_TEST);
+            this.gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+            // Initialize ODS render textures
+            this.initializeOdsTextures();
+
+
             if (typeof callback === 'function') callback();
         });
+    }
+
+    initializeOdsTextures() {
+        // Check for linear interpolation of float texture support
+        let float_linear = this.gl.getExtension('OES_texture_float_linear');
+        let float_tex_filter = (float_linear === null) ? this.gl.NEAREST : this.gl.LINEAR;
+        let ubyte_tex_filter = this.gl.LINEAR;
+
+        // Create color texture for left eye
+        this.textures.left.color = this.gl.createTexture();
+        let exr_options_left = {
+            red_buffer: 'Image.left.R',
+            green_buffer: 'Image.left.G',
+            blue_buffer: 'Image.left.B',
+            alpha_buffer: 'Image.left.A',
+            gamma_correct: true
+        };
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.left.color);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, ubyte_tex_filter);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, ubyte_tex_filter);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.exr.width, this.exr.height, 0, this.gl.RGBA,
+                           this.gl.UNSIGNED_BYTE, this.exr.generateRgbaUint8Buffer(exr_options_left));
+        
+        // Create depth texture for left eye
+        this.textures.left.depth = this.gl.createTexture();
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.left.depth);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, float_tex_filter);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, float_tex_filter);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+        if (this.exr.image_buffers['Depth.left.V'].type === 'half') {
+            this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.R16F, this.exr.width, this.exr.height, 0, this.gl.RED,
+                               this.gl.HALF_FLOAT, new Uint16Array(this.exr.image_buffers['Depth.left.V'].buffer.buffer));
+        }
+        else {
+            this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.R32F, this.exr.width, this.exr.height, 0, this.gl.RED,
+                               this.gl.FLOAT, this.exr.image_buffers['Depth.left.V'].buffer);
+        }
+
+        // Create color texture for left eye
+        this.textures.right.color = this.gl.createTexture();
+        let exr_options_right = {
+            red_buffer: 'Image.right.R',
+            green_buffer: 'Image.right.G',
+            blue_buffer: 'Image.right.B',
+            alpha_buffer: 'Image.right.A',
+            gamma_correct: true
+        };
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.right.color);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, ubyte_tex_filter);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, ubyte_tex_filter);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.exr.width, this.exr.height, 0, this.gl.RGBA,
+                           this.gl.UNSIGNED_BYTE, this.exr.generateRgbaUint8Buffer(exr_options_right));
+        
+        // Create depth texture for left eye
+        this.textures.right.depth = this.gl.createTexture();
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.right.depth);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, float_tex_filter);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, float_tex_filter);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+        if (this.exr.image_buffers['Depth.right.V'].type === 'half') {
+            this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.R16F, this.exr.width, this.exr.height, 0, this.gl.RED,
+                               this.gl.HALF_FLOAT, new Uint16Array(this.exr.image_buffers['Depth.right.V'].buffer.buffer));
+        }
+        else {
+            this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.R32F, this.exr.width, this.exr.height, 0, this.gl.RED,
+                               this.gl.FLOAT, this.exr.image_buffers['Depth.right.V'].buffer);
+        }
+
+        // Unbind textures
+        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
     }
 
     glslCreateShaderProgram(vert_source, frag_source) {

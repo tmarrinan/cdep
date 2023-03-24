@@ -20,10 +20,12 @@ class OpenExrReader {
     
     generateRgbaUint8Buffer(options) {
         if (!options) options = {};
-        options.red_buffer = options.red_buffer || 'R';
-        options.green_buffer = options.green_buffer || 'G';
-        options.blue_buffer = options.blue_buffer || 'B';
-        options.alpha_buffer = options.alpha_buffer || 'A';
+        options.buffers = [
+            options.red_buffer || 'R',
+            options.green_buffer || 'G',
+            options.blue_buffer || 'B',
+            options.alpha_buffer || 'A'
+        ];
         options.gamma_correct = options.gamma_correct || true;
         
         if (!this.image_buffers.hasOwnProperty(options.red_buffer) ||
@@ -34,17 +36,29 @@ class OpenExrReader {
             return null;
         }
         
-        let i;
-        let gamma = options.gamma_correct ? 1.0 / 2.2 : 1.0;
+        let i, j;
+        let gamma = 1.0 / 2.4;
         let normalize = this.image_buffers[options.red_buffer].type === 'uint' ? 4294967295.0 : 1.0
         let component_size = this.image_buffers[options.red_buffer].buffer.length;
         let buffer_size = 4 * component_size;
         let buffer = new Uint8Array(buffer_size);
         for (i = 0; i < component_size; i++) {
-            buffer[4 * i + 0] = 255 * Math.pow((this.image_buffers[options.red_buffer].buffer[i] / normalize), gamma);
-            buffer[4 * i + 1] = 255 * Math.pow((this.image_buffers[options.green_buffer].buffer[i] / normalize), gamma);
-            buffer[4 * i + 2] = 255 * Math.pow((this.image_buffers[options.blue_buffer].buffer[i] / normalize), gamma);
-            buffer[4 * i + 3] = 255 * (this.image_buffers[options.alpha_buffer].buffer[i] / normalize);
+            for (j = 0; j < 4; j++) {
+                let linear = this.image_buffers[options.buffers[j]].buffer[i] / normalize;
+                if (options.gamma_correct && j < 4) {
+                    let srgb;
+                    if (linear > 0.0031308) {
+                        srgb = Math.min(1.055 * Math.pow(linear, gamma), 1.0);
+                    }
+                    else {
+                        srgb = 12.92 * linear;
+                    }
+                    buffer[4 * i + j] = Math.round(255.0 * srgb);
+                }
+                else {
+                    buffer[4 * i + j] = Math.round(255.0 * linear);
+                }
+            }
         }
         return buffer;
     }

@@ -66,7 +66,6 @@ export default {
 
             let exr_texture = new BaseTexture(scene);
             exr_texture._texture = engine.wrapWebGLTexture(ods_image.textures.left.color, false);
-            console.log(exr_texture);
             exr_material.diffuseTexture = exr_texture;
             exr_material.specularColor = new Color3(0.0, 0.0, 0.0);
             plane.material = exr_material;

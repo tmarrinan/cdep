@@ -1,5 +1,5 @@
 import {inflate as zlib_inflate} from './pako.esm.js';
-import {Float16Array} from './float16.js';
+import {Float16Array} from './float16.esm.js';
 
 class OpenExrReader {
     #read_idx;

@@ -61,14 +61,18 @@ export default {
         // Create ODS image contruction object
         let exr_material = new StandardMaterial('EXR_Material', scene);
         let plane = CreatePlane('plane', {width: 30.0, height: 15.0});
-        let ods_image = new OdsImage(this.gl, '/data/office_dasp.exr', () => {
+        let ods_image = new OdsImage(this.gl, '/data/office_dasp.exr', 'DASP', () => {
             console.log(ods_image.exr);
+            console.log(ods_image.exr_metadata);
 
             let exr_texture = new BaseTexture(scene);
             exr_texture._texture = engine.wrapWebGLTexture(ods_image.textures.left.color, false);
             exr_material.diffuseTexture = exr_texture;
             exr_material.specularColor = new Color3(0.0, 0.0, 0.0);
             plane.material = exr_material;
+
+
+            ods_image.render(new Float32Array([-0.10, 1.77, 0.72]), camera.znear, camera.zfar);
         });
 
         // Render every frame

@@ -1,9 +1,11 @@
 import {OpenExrReader} from './openExrReader.js';
 
 class OdsImage {
-    constructor(gl, exr_url, callback) {
-        this.exr = null;
+    constructor(gl, exr_url, type, callback) {
         this.gl = gl;
+        this.exr = null;
+        this.exr_metadata = {};
+        this.image_type = type; 
         this.dasp_shader = {program: null, uniforms: null};
         this.dep_shader = {program: null, uniforms: null};
         this.textures = {left: {color: null, depth: null}, right: {color: null, depth: null}};
@@ -22,6 +24,9 @@ class OdsImage {
         .then((results) => {
             // Read EXR image
             this.exr = new OpenExrReader(results[0]);
+            if (this.exr.attributes.hasOwnProperty('Note') && this.exr.attributes.Note.type === 'string') {
+                this.exr_metadata = JSON.parse(this.exr.attributes.Note.value);
+            }
 
             // Create DASP shader program
             this.dasp_shader.program = this.glslCreateShaderProgram(results[1], results[2]);
@@ -54,6 +59,39 @@ class OdsImage {
 
             if (typeof callback === 'function') callback();
         });
+    }
+
+    render(camera_position, near, far) {
+        // Delete previous frame (reset both framebuffer and z-buffer)
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+        // Create projection matrix for equirectangular coordinates
+        let left = 0.0;
+        let right = 2.0 * Math.PI;
+        let bottom = Math.PI;
+        let top = 0.0;
+        let projection_matrix = new Float32Array([
+            2.0 / (right - left), 0.0, 0.0, 0.0,
+            0.0, 2.0 / (top - bottom), 0.0, 0.0,
+            0.0, 0.0, -2.0 / (far - near), 0.0,
+            -(right + left) / (right - left), -(top + bottom) / (top - bottom), -(far + near) / (far - near), 1.0
+        ]);
+
+        // DASP
+        if (this.image_type === 'DASP') {
+            this.gl.useProgram(this.dasp_shader.program);
+
+            this.gl.uniform1f(this.dasp_shader.uniforms.img_ipd, this.exr_metadata.ipd);
+            this.gl.uniform1f(this.dasp_shader.uniforms.img_focal_dist, this.exr_metadata.focal_dist);
+            this.gl.uniform3fv(this.dasp_shader.uniforms.camera_position, camera_position);
+            this.gl.uniformMatrix4fv(this.dasp_shader.uniforms.ortho_projection, false, projection_matrix);
+        }
+        // C-DEP
+        else {
+            this.gl.useProgram(this.dep_shader.program);
+        }
+
+        this.gl.useProgram(null);
     }
 
     initializeOdsTextures() {

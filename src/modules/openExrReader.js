@@ -439,8 +439,8 @@ class OpenExrReader {
         // copy to image buffers
         let buffer_idx = 0;
         let offset = scan_line * this.width;
-        let rows = Math.min(this.height - scan_line, this.#scan_lines_per_block);
-        for (i = 0; i < rows; i++) {
+        let num_rows = ((scan_line + this.#scan_lines_per_block) < this.height) ? this.#scan_lines_per_block : this.height - scan_line;
+        for (i = 0; i < num_rows; i++) {
             for (j = 0; j < this.attributes.channels.value.length; j++) {
                 let pixel_data, size;
                 let channel = this.attributes.channels.value[j];

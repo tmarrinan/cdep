@@ -65,14 +65,13 @@ export default {
             console.log(ods_image.exr);
             console.log(ods_image.exr_metadata);
 
+            ods_image.render([-0.25, 1.77, 0.72], camera.znear, camera.zfar);
+
             let exr_texture = new BaseTexture(scene);
-            exr_texture._texture = engine.wrapWebGLTexture(ods_image.textures.left.color, false);
+            exr_texture._texture = engine.wrapWebGLTexture(ods_image.render_target.textures.color, false);
             exr_material.diffuseTexture = exr_texture;
             exr_material.specularColor = new Color3(0.0, 0.0, 0.0);
             plane.material = exr_material;
-
-
-            ods_image.render(new Float32Array([-0.10, 1.77, 0.72]), camera.znear, camera.zfar);
         });
 
         // Render every frame

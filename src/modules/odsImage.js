@@ -8,7 +8,7 @@ class OdsImage {
         this.image_type = type; 
         this.dasp_shader = {program: null, uniforms: null};
         this.dep_shader = {program: null, uniforms: null};
-        this.textures = {left: {color: null, depth: null}, right: {color: null, depth: null}};
+        this.textures = [];
         this.render_target = {framebuffer: null, textures: {color: null, depth: null}};
         this.ods_pointcloud = {vertex_array: null, num_points: 0};
         this.vertex_position_attrib = 0;
@@ -48,7 +48,12 @@ class OdsImage {
             this.gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
             // Initialize ODS textures
-            this.initializeOdsTextures();
+            if (this.image_type === 'DASP') {
+                this.initializeDaspTextures();
+            }
+            else {
+                this.initializeCdepTextures();
+            }
 
             // Initialize ODS render targets
             this.initializeOdsRenderTargets();
@@ -65,6 +70,10 @@ class OdsImage {
         // Delete previous frame (reset both framebuffer and z-buffer)
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
+        // Render to texture
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.render_target.framebuffer);
+        this.gl.viewport(0, 0, this.exr.width, this.exr.height);
+
         // Create projection matrix for equirectangular coordinates
         let left = 0.0;
         let right = 2.0 * Math.PI;
@@ -76,6 +85,11 @@ class OdsImage {
             0.0, 0.0, -2.0 / (far - near), 0.0,
             -(right + left) / (right - left), -(top + bottom) / (top - bottom), -(far + near) / (far - near), 1.0
         ]);
+        let relative_cam_pos = new Float32Array([
+            camera_position[0] - this.exr_metadata.camera_position.x,
+            camera_position[1] - this.exr_metadata.camera_position.y,
+            camera_position[2] - this.exr_metadata.camera_position.z
+        ]);
 
         // DASP
         if (this.image_type === 'DASP') {
@@ -83,8 +97,37 @@ class OdsImage {
 
             this.gl.uniform1f(this.dasp_shader.uniforms.img_ipd, this.exr_metadata.ipd);
             this.gl.uniform1f(this.dasp_shader.uniforms.img_focal_dist, this.exr_metadata.focal_dist);
-            this.gl.uniform3fv(this.dasp_shader.uniforms.camera_position, camera_position);
+            this.gl.uniform3fv(this.dasp_shader.uniforms.camera_position, relative_cam_pos);
             this.gl.uniformMatrix4fv(this.dasp_shader.uniforms.ortho_projection, false, projection_matrix);
+
+            
+            // Left eye
+            this.gl.uniform1f(this.dasp_shader.uniforms.eye, -1.0);
+            this.gl.activeTexture(this.gl.TEXTURE0);
+            this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[0].color);
+            this.gl.uniform1i(this.dasp_shader.uniforms.image, 0);
+            this.gl.activeTexture(this.gl.TEXTURE1);
+            this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[0].depth);
+            this.gl.uniform1i(this.dasp_shader.uniforms.depths, 1);
+
+            this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
+            this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+            this.gl.bindVertexArray(null);
+            
+            // Right eye
+            this.gl.uniform1f(this.dasp_shader.uniforms.eye, 1.0);
+            this.gl.activeTexture(this.gl.TEXTURE0);
+            this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].color);
+            this.gl.uniform1i(this.dasp_shader.uniforms.image, 0);
+            this.gl.activeTexture(this.gl.TEXTURE1);
+            this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].depth);
+            this.gl.uniform1i(this.dasp_shader.uniforms.depths, 1);
+
+            this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
+            this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+            this.gl.bindVertexArray(null);
+
+            console.log(relative_cam_pos, this.gl.getError());
         }
         // C-DEP
         else {
@@ -92,16 +135,17 @@ class OdsImage {
         }
 
         this.gl.useProgram(null);
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
     }
 
-    initializeOdsTextures() {
+    initializeDaspTextures() {
         // Check for linear interpolation of float texture support
         let float_linear = this.gl.getExtension('OES_texture_float_linear');
         let float_tex_filter = (float_linear === null) ? this.gl.NEAREST : this.gl.LINEAR;
         let ubyte_tex_filter = this.gl.LINEAR;
 
         // Create color texture for left eye
-        this.textures.left.color = this.gl.createTexture();
+        this.textures.push({color: this.gl.createTexture(), depth: this.gl.createTexture()});
         let exr_options_left = {
             red_buffer: 'Image.left.R',
             green_buffer: 'Image.left.G',
@@ -109,7 +153,7 @@ class OdsImage {
             alpha_buffer: 'Image.left.A',
             gamma_correct: true
         };
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.left.color);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[0].color);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, ubyte_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, ubyte_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
@@ -118,8 +162,7 @@ class OdsImage {
                            this.gl.UNSIGNED_BYTE, this.exr.generateRgbaUint8Buffer(exr_options_left));
         
         // Create depth texture for left eye
-        this.textures.left.depth = this.gl.createTexture();
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.left.depth);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[0].depth);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, float_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, float_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
@@ -133,8 +176,8 @@ class OdsImage {
                                this.gl.FLOAT, this.exr.image_buffers['Depth.left.V'].buffer);
         }
 
-        // Create color texture for left eye
-        this.textures.right.color = this.gl.createTexture();
+        // Create color texture for right eye
+        this.textures.push({color: this.gl.createTexture(), depth: this.gl.createTexture()});
         let exr_options_right = {
             red_buffer: 'Image.right.R',
             green_buffer: 'Image.right.G',
@@ -142,7 +185,7 @@ class OdsImage {
             alpha_buffer: 'Image.right.A',
             gamma_correct: true
         };
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.right.color);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].color);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, ubyte_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, ubyte_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
@@ -150,9 +193,8 @@ class OdsImage {
         this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.exr.width, this.exr.height, 0, this.gl.RGBA,
                            this.gl.UNSIGNED_BYTE, this.exr.generateRgbaUint8Buffer(exr_options_right));
         
-        // Create depth texture for left eye
-        this.textures.right.depth = this.gl.createTexture();
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures.right.depth);
+        // Create depth texture for right eye
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].depth);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, float_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, float_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
@@ -168,6 +210,10 @@ class OdsImage {
 
         // Unbind textures
         this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+    }
+
+    initializeCdepTextures() {
+
     }
 
     initializeOdsRenderTargets() {

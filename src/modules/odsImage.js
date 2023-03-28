@@ -287,7 +287,8 @@ class OdsImage {
                 let norm_x = (i + 0.5) / this.exr.width;
                 let norm_y = (j + 0.5) / this.exr.height;
                 let azimuth = 2.0 * Math.PI * norm_x;
-                let inclination = Math.PI * (1.0 - norm_y);
+                //let inclination = Math.PI * (1.0 - norm_y);
+                let inclination = Math.PI * norm_y;
                 vertices[2 * idx + 0] = azimuth;
                 vertices[2 * idx + 1] = inclination;
                 texcoords[2 * idx + 0] = norm_x;

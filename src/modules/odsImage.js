@@ -115,6 +115,7 @@ class OdsImage {
             this.gl.bindVertexArray(null);
             
             // Right eye
+            
             this.gl.uniform1f(this.dasp_shader.uniforms.eye, 1.0);
             this.gl.activeTexture(this.gl.TEXTURE0);
             this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].color);
@@ -126,7 +127,7 @@ class OdsImage {
             this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
             this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
             this.gl.bindVertexArray(null);
-
+            
             console.log(relative_cam_pos, this.gl.getError());
         }
         // C-DEP
@@ -287,8 +288,7 @@ class OdsImage {
                 let norm_x = (i + 0.5) / this.exr.width;
                 let norm_y = (j + 0.5) / this.exr.height;
                 let azimuth = 2.0 * Math.PI * norm_x;
-                //let inclination = Math.PI * (1.0 - norm_y);
-                let inclination = Math.PI * norm_y;
+                let inclination = Math.PI * (1.0 - norm_y);
                 vertices[2 * idx + 0] = azimuth;
                 vertices[2 * idx + 1] = inclination;
                 texcoords[2 * idx + 0] = norm_x;

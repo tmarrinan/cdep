@@ -16,6 +16,7 @@ in vec2 vertex_position;
 in vec2 vertex_texcoord;
 
 out vec2 texcoord;
+out float pt_depth;
 
 void main() {
     // Calculate projected point position (relative to projection sphere center)
@@ -27,11 +28,12 @@ void main() {
 
     // Calculate DASP camera position (relative to projection sphere center)
     float eye_radius = 0.5 * img_ipd * cos(inclination - (M_PI / 2.0));
-    float eye_azimuth = azimuth + eye * acos(0.5 * img_ipd / img_focal_dist);
-    float eye_inclination = M_PI / 2.0;
-    vec3 eye_pt = vec3(eye_radius * cos(eye_azimuth) * sin(eye_inclination),
-                       eye_radius * sin(eye_azimuth) * sin(eye_inclination),
-                       eye_radius * cos(inclination));
+    //float eye_azimuth = azimuth + eye * acos(0.5 * img_ipd / img_focal_dist); // NOT SURE -- could be this version
+    float eye_azimuth = azimuth + eye * acos(eye_radius / img_focal_dist);
+    //float eye_inclination = M_PI / 2.0;
+    vec3 eye_pt = vec3(eye_radius * cos(eye_azimuth),
+                       eye_radius * sin(eye_azimuth),
+                       0.0);
 
     // Calculate vector from camera to 3D point
     float vertex_depth = texture(depths, vertex_texcoord).r;
@@ -41,75 +43,22 @@ void main() {
     vec3 pt = eye_pt + eye_to_pt;
 
     // Backproject to new 360 panorama
-    vec3 vertex_direction = pt - camera_position;
+    vec3 camera_sp = vec3(camera_position.z, -camera_position.x, camera_position.y);
+    vec3 vertex_direction = pt - camera_sp;
     float magnitude = length(vertex_direction);
-    float theta = acos(vertex_direction.y / magnitude);
-    float phi = ((abs(vertex_direction.z) < EPSILON) ? sign(vertex_direction.y) * -0.5 * M_PI : atan(vertex_direction.x, -vertex_direction.z)) + M_PI;
-    gl_Position = ortho_projection * vec4(phi, theta, -magnitude, 1.0);
+    float new_azimuth = (abs(vertex_direction.x) < EPSILON && abs(vertex_direction.y) < EPSILON) ?
+                        (1.0 - 0.5 * sign(vertex_direction.z)) * M_PI :
+                        mod(atan(vertex_direction.y, vertex_direction.x), 2.0 * M_PI);
+    float new_inclination = acos(vertex_direction.z / magnitude);
 
-    // Set point size (1.5?)
-    gl_PointSize = 1.5;
+    // Set point size (1.25 seems to be a good balance between filling small holes and blurring image)
+    gl_PointSize = 1.25;
 
-    /*
-    // Calculate 3D vector from DASP camera to point
-    float azimuth = vertex_position.x;
-    float inclination = vertex_position.y;
-    float vertex_depth = texture(depths, vertex_texcoord).r;
-    vec3 pt_dir = vec3(-vertex_depth * sin(azimuth) * sin(inclination),
-                        vertex_depth * cos(inclination),
-                        vertex_depth * cos(azimuth) * sin(inclination));
-    
-    // Calculate DASP camera position (relative to projection sphere center)
-    float eye_radius = 0.5 * img_ipd * cos(inclination - (M_PI / 2.0));
-    float eye_azimuth = azimuth + eye * acos(0.5 * img_ipd / img_focal_dist);
-    vec3 eye_dir = vec3(-eye_radius * sin(eye_azimuth),
-                         0,
-                         eye_radius * cos(eye_azimuth));
+    // Set point position
+    float depth_hint = 0.005 * eye; // favor left eye image when depth's match
+    gl_Position = ortho_projection * vec4(new_azimuth, new_inclination, -magnitude + depth_hint, 1.0);
 
-    // Calculate 3D position of point (relative to projection sphere center)
-    vec3 pt = eye_dir + pt_dir;
-
-    // Backproject to new 360 panorama
-    vec3 vertex_direction = pt - camera_position;
-    float magnitude = length(vertex_direction);
-    float theta = acos(vertex_direction.y / magnitude);
-    float phi = ((abs(vertex_direction.z) < EPSILON) ? sign(vertex_direction.y) * -0.5 * M_PI : atan(vertex_direction.x, -vertex_direction.z)) + M_PI;
-    gl_Position = ortho_projection * vec4(phi, theta, -magnitude, 1.0);
-
-    // Set point size (1.5?)
-    gl_PointSize = 1.5;
-    */
-
-    /*
-    // Calculate 3D vector from eye to point
-    float azimuth = vertex_position.x;
-    float inclination = vertex_position.y;
-    float vertex_depth = min(texture(depths, vertex_texcoord).r, FAR - (length(camera_position) + ipd + EPSILON));
-    vec3 pt_dir = vec3(-vertex_depth * sin(azimuth) * sin(inclination),
-                        vertex_depth * cos(inclination),
-                        vertex_depth * cos(azimuth) * sin(inclination));
-
-    // Calculate 3D vector from eye to point
-    float eye_radius = 0.5 * ipd;
-    float eye_azimuth = azimuth + (eye * 0.5 * M_PI);
-    vec3 eye_dir = vec3(-eye_radius * sin(eye_azimuth),
-                         0,
-                         eye_radius * cos(eye_azimuth));
-    
-    // Calculate 3D position of point
-    vec3 pt = eye_dir + pt_dir;
-    
-    // Backproject to new 360 panorama
-    vec3 vertex_direction = pt - camera_position;
-    float magnitude = length(vertex_direction);
-    float theta = acos(vertex_direction.y / magnitude);
-    float phi = ((abs(vertex_direction.z) < EPSILON) ? sign(vertex_direction.y) * -0.5 * M_PI : atan(vertex_direction.x, -vertex_direction.z)) + M_PI;
-    gl_Position = ortho_projection * vec4(phi, theta, -magnitude, 1.0);
-    
-    // Set point size (1.5?)
-    gl_PointSize = 1.0;
-    */
-
-    // Pass along texture coordinate
+    // Pass along texture coordinate and depth
     texcoord = vertex_texcoord;
+    pt_depth = magnitude;
 }

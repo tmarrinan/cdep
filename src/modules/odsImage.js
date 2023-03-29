@@ -72,7 +72,6 @@ class OdsImage {
 
         // Render to texture
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.render_target.framebuffer);
-        this.gl.viewport(0, 0, this.exr.width, this.exr.height);
 
         // Create projection matrix for equirectangular coordinates
         let left = 0.0;
@@ -100,35 +99,37 @@ class OdsImage {
             this.gl.uniform3fv(this.dasp_shader.uniforms.camera_position, relative_cam_pos);
             this.gl.uniformMatrix4fv(this.dasp_shader.uniforms.ortho_projection, false, projection_matrix);
 
+            // Draw right (bottom half of image) and left (top half of image) views
+            for (let i = 0; i < 2; i++) {
+                this.gl.viewport(0, i * this.exr.height, this.exr.width, this.exr.height);
+                this.gl.uniform1f(this.dasp_shader.uniforms.camera_eye, -2.0 * (i - 0.5));
             
-            // Left eye
-            this.gl.uniform1f(this.dasp_shader.uniforms.eye, -1.0);
-            this.gl.activeTexture(this.gl.TEXTURE0);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[0].color);
-            this.gl.uniform1i(this.dasp_shader.uniforms.image, 0);
-            this.gl.activeTexture(this.gl.TEXTURE1);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[0].depth);
-            this.gl.uniform1i(this.dasp_shader.uniforms.depths, 1);
+                // Left eye
+                this.gl.uniform1f(this.dasp_shader.uniforms.eye, -1.0);
+                this.gl.activeTexture(this.gl.TEXTURE0);
+                this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[0].color);
+                this.gl.uniform1i(this.dasp_shader.uniforms.image, 0);
+                this.gl.activeTexture(this.gl.TEXTURE1);
+                this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[0].depth);
+                this.gl.uniform1i(this.dasp_shader.uniforms.depths, 1);
 
-            this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
-            this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
-            this.gl.bindVertexArray(null);
-            
-            // Right eye
-            
-            this.gl.uniform1f(this.dasp_shader.uniforms.eye, 1.0);
-            this.gl.activeTexture(this.gl.TEXTURE0);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].color);
-            this.gl.uniform1i(this.dasp_shader.uniforms.image, 0);
-            this.gl.activeTexture(this.gl.TEXTURE1);
-            this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].depth);
-            this.gl.uniform1i(this.dasp_shader.uniforms.depths, 1);
+                this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
+                this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+                this.gl.bindVertexArray(null);
+                
+                // Right eye
+                this.gl.uniform1f(this.dasp_shader.uniforms.eye, 1.0);
+                this.gl.activeTexture(this.gl.TEXTURE0);
+                this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].color);
+                this.gl.uniform1i(this.dasp_shader.uniforms.image, 0);
+                this.gl.activeTexture(this.gl.TEXTURE1);
+                this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].depth);
+                this.gl.uniform1i(this.dasp_shader.uniforms.depths, 1);
 
-            this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
-            this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
-            this.gl.bindVertexArray(null);
-            
-            console.log(relative_cam_pos, this.gl.getError());
+                this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
+                this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+                this.gl.bindVertexArray(null);
+            }
         }
         // C-DEP
         else {
@@ -230,7 +231,7 @@ class OdsImage {
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, ubyte_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.exr.width, this.exr.height, 0, this.gl.RGBA, 
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.exr.width, 2 * this.exr.height, 0, this.gl.RGBA, 
                            this.gl.UNSIGNED_BYTE, null);
 
         // Create depth render texture
@@ -240,7 +241,7 @@ class OdsImage {
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, float_tex_filter);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.R32F, this.exr.width, this.exr.height, 0, this.gl.RED, 
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.R32F, this.exr.width, 2 * this.exr.height, 0, this.gl.RED, 
                            this.gl.FLOAT, null);
 
         // Unbind textures
@@ -249,7 +250,7 @@ class OdsImage {
         // Create depth buffer object
         let depth_renderbuffer = this.gl.createRenderbuffer();
         this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, depth_renderbuffer);
-        this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_COMPONENT24, this.exr.width, this.exr.height);
+        this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_COMPONENT24, this.exr.width, 2 * this.exr.height);
 
         // Unbind depth buffer object
         this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);

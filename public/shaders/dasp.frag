@@ -12,5 +12,5 @@ layout(location = 1) out float FragDepth;
 
 void main() {
     FragColor = texture(image, texcoord);
-    FragDepth = min(pt_depth / 9.0, 1.0);
+    FragDepth = pt_depth;
 }

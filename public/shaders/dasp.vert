@@ -9,6 +9,7 @@ uniform float img_ipd;
 uniform float img_focal_dist;
 uniform float eye; // left: +1.0, right: -1.0
 uniform vec3 camera_position;
+uniform float camera_eye; // left: +1.0, right: -1.0
 uniform mat4 ortho_projection;
 uniform sampler2D depths;
 
@@ -29,8 +30,7 @@ void main() {
     // Calculate DASP camera position (relative to projection sphere center)
     float eye_radius = 0.5 * img_ipd * cos(inclination - (M_PI / 2.0));
     //float eye_azimuth = azimuth + eye * acos(0.5 * img_ipd / img_focal_dist); // NOT SURE -- could be this version
-    float eye_azimuth = azimuth + eye * acos(eye_radius / img_focal_dist);
-    //float eye_inclination = M_PI / 2.0;
+    float eye_azimuth = azimuth + eye * acos(eye_radius / img_focal_dist); // PRETTY SURE IT'S THIS THOUGH
     vec3 eye_pt = vec3(eye_radius * cos(eye_azimuth),
                        eye_radius * sin(eye_azimuth),
                        0.0);
@@ -43,8 +43,9 @@ void main() {
     vec3 pt = eye_pt + eye_to_pt;
 
     // Backproject to new 360 panorama
-    vec3 camera_sp = vec3(camera_position.z, -camera_position.x, camera_position.y);
-    vec3 vertex_direction = pt - camera_sp;
+    // TODO: use `camera_eye` to make panorama into ODS image
+    vec3 camera_spherical = vec3(camera_position.z, -camera_position.x, camera_position.y);
+    vec3 vertex_direction = pt - camera_spherical;
     float magnitude = length(vertex_direction);
     float new_azimuth = (abs(vertex_direction.x) < EPSILON && abs(vertex_direction.y) < EPSILON) ?
                         (1.0 - 0.5 * sign(vertex_direction.z)) * M_PI :

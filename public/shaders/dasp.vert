@@ -56,7 +56,7 @@ void main() {
     gl_PointSize = 1.25;
 
     // Set point position
-    float depth_hint = 0.005 * eye; // favor left eye image when depth's match
+    float depth_hint = 0.0025 * eye; // favor left eye image when depth's match
     gl_Position = ortho_projection * vec4(new_azimuth, new_inclination, -magnitude + depth_hint, 1.0);
 
     // Pass along texture coordinate and depth

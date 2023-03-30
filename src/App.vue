@@ -61,7 +61,7 @@ export default {
         // Create ODS image contruction object
         let exr_material = new StandardMaterial('EXR_Material', scene);
         let plane = CreatePlane('plane', {width: 30.0, height: 15.0});
-        let ods_image = new OdsImage(this.gl, '/data/office_dasp.exr', 'DASP', () => {
+        let ods_image = new OdsImage(this.gl, '/data/offce_dasp_nodenoise_0.50.exr', 'DASP', () => {
             console.log(ods_image.exr);
             console.log(ods_image.exr_metadata);
 

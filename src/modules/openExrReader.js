@@ -28,24 +28,40 @@ class OpenExrReader {
         ];
         options.gamma_correct = options.gamma_correct || true;
         
-        if (!this.image_buffers.hasOwnProperty(options.red_buffer) ||
-            !this.image_buffers.hasOwnProperty(options.green_buffer) ||
-            !this.image_buffers.hasOwnProperty(options.blue_buffer) ||
-            !this.image_buffers.hasOwnProperty(options.alpha_buffer)) {
+        if (!this.image_buffers.hasOwnProperty(options.buffers[0]) ||
+            !this.image_buffers.hasOwnProperty(options.buffers[1]) ||
+            !this.image_buffers.hasOwnProperty(options.buffers[2]) ||
+            !this.image_buffers.hasOwnProperty(options.buffers[3])) {
             console.log('OpenExrReader: Error - no image buffer with specified name');
             return null;
         }
         
         let i, j;
         let gamma = 1.0 / 2.4;
-        let normalize = this.image_buffers[options.red_buffer].type === 'uint' ? 4294967295.0 : 1.0
-        let component_size = this.image_buffers[options.red_buffer].buffer.length;
+        let normalize = this.image_buffers[options.buffers[0]].type === 'uint' ? 4294967295.0 : 1.0
+        let component_size = this.image_buffers[options.buffers[0]].buffer.length;
         let buffer_size = 4 * component_size;
         let buffer = new Uint8Array(buffer_size);
+
+        /*
+        let max_col = 0.0;
+        for (i = 0; i < component_size; i++) {
+            let linear = this.image_buffers[options.buffers[2]].buffer[i];
+            if (linear > max_col) max_col = linear;
+        }
+        console.log("EXR Max R = ", max_col)
+        */
+
         for (i = 0; i < component_size; i++) {
             for (j = 0; j < 4; j++) {
                 let linear = this.image_buffers[options.buffers[j]].buffer[i] / normalize;
                 if (options.gamma_correct && j < 4) {
+                    if (options.hasOwnProperty('hdr_scale_min') && options.hasOwnProperty('hdr_scale_max')) {
+                        if (linear > options.hdr_scale_min) {
+                            linear = ((linear - options.hdr_scale_min) / (options.hdr_scale_max - options.hdr_scale_min)) *
+                                     (1.0 - options.hdr_scale_min) + options.hdr_scale_min;
+                        }
+                    }
                     let srgb;
                     if (linear > 0.0031308) {
                         srgb = Math.min(1.055 * Math.pow(linear, gamma), 1.0);

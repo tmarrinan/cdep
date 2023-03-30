@@ -152,7 +152,9 @@ class OdsImage {
             green_buffer: 'Image.left.G',
             blue_buffer: 'Image.left.B',
             alpha_buffer: 'Image.left.A',
-            gamma_correct: true
+            gamma_correct: true,
+            hdr_scale_min: 0.75,
+            hdr_scale_max: 12.5
         };
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[0].color);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, ubyte_tex_filter);
@@ -184,7 +186,9 @@ class OdsImage {
             green_buffer: 'Image.right.G',
             blue_buffer: 'Image.right.B',
             alpha_buffer: 'Image.right.A',
-            gamma_correct: true
+            gamma_correct: true,
+            hdr_scale_min: 0.75,
+            hdr_scale_max: 12.5
         };
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[1].color);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, ubyte_tex_filter);

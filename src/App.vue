@@ -65,8 +65,6 @@ export default {
         let ods_image = new OdsImage(this.gl, '/data/office_dasp_nodenoise_0.33_4k.exr', 'DASP', () => {
             console.log(ods_image.exr);
             console.log(ods_image.exr_metadata);
-            console.log(ods_image.exr.image_buffers['Image.left.R'].buffer[0], ods_image.exr.image_buffers['Image.left.R'].buffer[1],
-            ods_image.exr.image_buffers['Image.left.R'].buffer[2]);
 
             ods_image.render([-0.15, 1.770, 0.65], camera.znear, camera.zfar);
 

@@ -52,10 +52,38 @@ class OpenExrReader {
         console.log("EXR Max R = ", max_col)
         */
 
+        let convert_start = performance.now();
+        buffer.forEach((x, i) => {
+            let idx = ~~(i / 4); // integer division
+            let component = i % 4;
+
+            let linear = this.image_buffers[options.buffers[component]].buffer[idx] / normalize;
+            if (component < 3 && options.gamma_correct) {
+                if (options.hasOwnProperty('hdr_scale_min') && options.hasOwnProperty('hdr_scale_max')) {
+                    if (linear > options.hdr_scale_min) {
+                        linear = ((linear - options.hdr_scale_min) / (options.hdr_scale_max - options.hdr_scale_min)) *
+                                 (1.0 - options.hdr_scale_min) + options.hdr_scale_min;
+                    }
+                }
+                let srgb;
+                if (linear > 0.0031308) {
+                    srgb = Math.min(1.055 * Math.pow(linear, gamma), 1.0);
+                }
+                else {
+                    srgb = 12.92 * linear;
+                }
+                buffer[i] = Math.round(255.0 * srgb);
+            }
+            else {
+                buffer[i] = Math.round(255.0 * linear);
+            }
+        });
+
+        /*
         for (i = 0; i < component_size; i++) {
             for (j = 0; j < 4; j++) {
                 let linear = this.image_buffers[options.buffers[j]].buffer[i] / normalize;
-                if (options.gamma_correct && j < 4) {
+                if (options.gamma_correct && j < 3) {
                     if (options.hasOwnProperty('hdr_scale_min') && options.hasOwnProperty('hdr_scale_max')) {
                         if (linear > options.hdr_scale_min) {
                             linear = ((linear - options.hdr_scale_min) / (options.hdr_scale_max - options.hdr_scale_min)) *
@@ -76,6 +104,9 @@ class OpenExrReader {
                 }
             }
         }
+        */
+        let convert_end = performance.now();
+        console.log('OpenEXR Conversion to sRGB: ' + ((convert_end - convert_start) / 1000).toFixed(2) + ' sec');
         return buffer;
     }
     

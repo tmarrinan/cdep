@@ -96,6 +96,8 @@ class OdsImage {
 
             this.gl.uniform1f(this.dasp_shader.uniforms.img_ipd, this.exr_metadata.ipd);
             this.gl.uniform1f(this.dasp_shader.uniforms.img_focal_dist, this.exr_metadata.focal_dist);
+            this.gl.uniform1f(this.dasp_shader.uniforms.camera_ipd, 0.065);
+            this.gl.uniform1f(this.dasp_shader.uniforms.camera_focal_dist, 1.95);
             this.gl.uniform3fv(this.dasp_shader.uniforms.camera_position, relative_cam_pos);
             this.gl.uniformMatrix4fv(this.dasp_shader.uniforms.ortho_projection, false, projection_matrix);
 

@@ -74,8 +74,8 @@ class OdsImage {
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.render_target.framebuffer);
 
         // Create projection matrix for equirectangular coordinates
-        let left = 0.0;
-        let right = 2.0 * Math.PI;
+        let left = 2.0 * Math.PI;
+        let right = 0.0;
         let bottom = Math.PI;
         let top = 0.0;
         let projection_matrix = new Float32Array([

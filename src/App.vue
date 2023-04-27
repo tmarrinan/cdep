@@ -51,8 +51,8 @@ export default {
                                          Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         //camera.inputs.attached.mousewheel.detachControl(canvas);
-        camera.znear = 0.1;
-        camera.zfar = 100.0;
+        camera.minZ = 0.1;
+        camera.maxZ = 100.0
 
         // TEMP
         let light = new HemisphericLight('hemilight', new Vector3(0, 0, -1), scene);
@@ -62,13 +62,13 @@ export default {
         let exr_material = new StandardMaterial('EXR_Material', scene);
         let plane = CreatePlane('plane', {width: 20.0, height: 20.0});
         //plane.position.y = -5.0; 
-        //let ods_image = new OdsImage(this.gl, '/data/office_dasp.exr', 'DASP', () => {
+        let ods_image = new OdsImage(this.gl, '/data/office_dasp.exr', 'DASP', () => {
         //let ods_image = new OdsImage(this.gl, '/data/office_dasp_nodenoise_0.33_4k.exr', 'DASP', () => {
-        let ods_image = new OdsImage(this.gl, '/data/office_dasp_postdenoise_0.33_4k.exr', 'DASP', () => {
+        //let ods_image = new OdsImage(this.gl, '/data/office_dasp_postdenoise_0.33_4k.exr', 'DASP', () => {
             console.log(ods_image.exr);
             console.log(ods_image.exr_metadata);
 
-            ods_image.render([-0.15, 1.770, 0.65], camera.znear, camera.zfar);
+            ods_image.render([-0.15, 1.770, 0.65], camera.minZ, camera.maxZ);
 
             let exr_texture = new BaseTexture(scene);
             exr_texture._texture = engine.wrapWebGLTexture(ods_image.render_target.textures.color, false);

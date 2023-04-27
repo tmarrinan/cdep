@@ -5,6 +5,7 @@ import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
+import { Plane } from '@babylonjs/core/Maths/math.plane';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { BaseTexture } from '@babylonjs/core/Materials/Textures/baseTexture';
@@ -45,9 +46,10 @@ export default {
 
         // Create our first scene.
         let scene = new Scene(engine);
+        scene.useRightHandedSystem = true;
 
         // Add a camera to the scene
-        let camera = new ArcRotateCamera('camera', -Math.PI / 2,  Math.PI / 2, 20.0, //0.001, 
+        let camera = new ArcRotateCamera('camera', Math.PI / 2,  Math.PI / 2, 20.0, //0.001, 
                                          Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         //camera.inputs.attached.mousewheel.detachControl(canvas);
@@ -55,12 +57,13 @@ export default {
         camera.maxZ = 100.0
 
         // TEMP
-        let light = new HemisphericLight('hemilight', new Vector3(0, 0, -1), scene);
+        let light = new HemisphericLight('hemilight', new Vector3(0, 0, 1), scene);
 
 
         // Create ODS image contruction object
         let exr_material = new StandardMaterial('EXR_Material', scene);
-        let plane = CreatePlane('plane', {width: 20.0, height: 20.0});
+        let source_plane = Plane.FromPositionAndNormal(Vector3.Zero(), new Vector3(0, 0, 1));
+        let plane = CreatePlane('plane', {width: 20.0, height: 20.0, sourcePlane: source_plane});
         //plane.position.y = -5.0; 
         let ods_image = new OdsImage(this.gl, '/data/office_dasp.exr', 'DASP', () => {
         //let ods_image = new OdsImage(this.gl, '/data/office_dasp_nodenoise_0.33_4k.exr', 'DASP', () => {

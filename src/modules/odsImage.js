@@ -132,6 +132,38 @@ class OdsImage {
         // C-DEP
         else {
             this.gl.useProgram(this.dep_shader.program);
+
+            this.gl.uniform1f(this.dep_shader.uniforms.camera_ipd, 0.065);
+            this.gl.uniform1f(this.dep_shader.uniforms.camera_focal_dist, 1.95);
+            this.gl.uniformMatrix4fv(this.dep_shader.uniforms.ortho_projection, false, projection_matrix);
+
+            // Draw right (bottom half of image) and left (top half of image) views
+            let relative_cam_pos = new Float32Array(this.textures.length);
+            for (let i = 0; i < 2; i++) {
+                this.gl.viewport(0, i * this.exr.height, this.exr.width, this.exr.height);
+                this.gl.uniform1f(this.dep_shader.uniforms.camera_eye, 2.0 * (i - 0.5));
+
+                for (let j = 0; j < this.textures.length; j++) {
+                    relative_cam_pos[0] = camera_position[0] - this.exr_metadata.camera_positions[j].x;
+                    relative_cam_pos[1] =  camera_position[1] - this.exr_metadata.camera_positions[j].y;
+                    relative_cam_pos[2] = camera_position[2] - this.exr_metadata.camera_positions[j].z;
+
+                    this.gl.uniform1f(this.dep_shader.uniforms.img_index, j);
+                    this.gl.uniform3fv(this.dep_shader.uniforms.camera_position, relative_cam_pos);
+
+                    // draw view
+                    this.gl.activeTexture(this.gl.TEXTURE0);
+                    this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[j].color);
+                    this.gl.uniform1i(this.dep_shader.uniforms.image, 0);
+                    this.gl.activeTexture(this.gl.TEXTURE1);
+                    this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[j].depth);
+                    this.gl.uniform1i(this.dep_shader.uniforms.depths, 1);
+
+                    this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
+                    this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+                    this.gl.bindVertexArray(null);
+                }
+            }
         }
 
         this.gl.useProgram(null);

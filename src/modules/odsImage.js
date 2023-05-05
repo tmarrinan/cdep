@@ -145,7 +145,7 @@ class OdsImage {
 
                 for (let j = 0; j < this.textures.length; j++) {
                     relative_cam_pos[0] = camera_position[0] - this.exr_metadata.camera_positions[j].x;
-                    relative_cam_pos[1] =  camera_position[1] - this.exr_metadata.camera_positions[j].y;
+                    relative_cam_pos[1] = camera_position[1] - this.exr_metadata.camera_positions[j].y;
                     relative_cam_pos[2] = camera_position[2] - this.exr_metadata.camera_positions[j].z;
 
                     this.gl.uniform1f(this.dep_shader.uniforms.img_index, j);

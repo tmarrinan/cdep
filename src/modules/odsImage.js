@@ -138,26 +138,44 @@ class OdsImage {
             this.gl.uniform1f(this.dep_shader.uniforms.camera_focal_dist, 1.95);
             this.gl.uniformMatrix4fv(this.dep_shader.uniforms.ortho_projection, false, projection_matrix);
 
+            // Sort images based on distance from desired view
+            let image_order = [];
+            for (let i = 0; i < this.textures.length; i++) {
+                let relative_cam_pos = new Float32Array(3);
+                relative_cam_pos[0] = camera_position[0] - this.exr_metadata.camera_positions[i].x;
+                relative_cam_pos[1] = camera_position[1] - this.exr_metadata.camera_positions[i].y;
+                relative_cam_pos[2] = camera_position[2] - this.exr_metadata.camera_positions[i].z;
+                let relative_cam_pos_mag2 = (relative_cam_pos[0] * relative_cam_pos[0]) + 
+                                            (relative_cam_pos[1] * relative_cam_pos[1]) + 
+                                            (relative_cam_pos[2] * relative_cam_pos[2]);
+                let insert_pos = image_order.length;
+                for (let j = 0; j < image_order.length; j++) {
+                    if (relative_cam_pos_mag2 < image_order[j].cam_pos_mag2) {
+                        insert_pos = j;
+                        break;
+                    }
+                }
+                image_order.splice(insert_pos, 0, {index: i, cam_pos: relative_cam_pos, cam_pos_mag2: relative_cam_pos_mag2});
+            }
+            console.log(image_order);
+
             // Draw right (bottom half of image) and left (top half of image) views
-            let relative_cam_pos = new Float32Array(this.textures.length);
+            //let relative_cam_pos = new Float32Array(this.textures.length);
             for (let i = 0; i < 2; i++) {
                 this.gl.viewport(0, i * this.exr.height, this.exr.width, this.exr.height);
                 this.gl.uniform1f(this.dep_shader.uniforms.camera_eye, 2.0 * (i - 0.5));
 
-                for (let j = 0; j < this.textures.length; j++) {
-                    relative_cam_pos[0] = camera_position[0] - this.exr_metadata.camera_positions[j].x;
-                    relative_cam_pos[1] = camera_position[1] - this.exr_metadata.camera_positions[j].y;
-                    relative_cam_pos[2] = camera_position[2] - this.exr_metadata.camera_positions[j].z;
-
-                    this.gl.uniform1f(this.dep_shader.uniforms.img_index, j);
-                    this.gl.uniform3fv(this.dep_shader.uniforms.camera_position, relative_cam_pos);
+                for (let j = 0; j < image_order.length; j++) {
+                    let idx = image_order[j].index;
+                    this.gl.uniform1f(this.dep_shader.uniforms.img_index, idx);
+                    this.gl.uniform3fv(this.dep_shader.uniforms.camera_position, image_order[j].cam_pos);
 
                     // draw view
                     this.gl.activeTexture(this.gl.TEXTURE0);
-                    this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[j].color);
+                    this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[idx].color);
                     this.gl.uniform1i(this.dep_shader.uniforms.image, 0);
                     this.gl.activeTexture(this.gl.TEXTURE1);
-                    this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[j].depth);
+                    this.gl.bindTexture(this.gl.TEXTURE_2D, this.textures[idx].depth);
                     this.gl.uniform1i(this.dep_shader.uniforms.depths, 1);
 
                     this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);

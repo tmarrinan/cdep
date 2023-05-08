@@ -72,7 +72,8 @@ export default {
             console.log(ods_image.exr);
             console.log(ods_image.exr_metadata);
 
-            ods_image.render([-0.15, 1.770, 0.65], camera.minZ, camera.maxZ);
+            //ods_image.render([-0.15, 1.770, 0.65], camera.minZ, camera.maxZ);
+            ods_image.render([0.15, 1.770, 0.77], camera.minZ, camera.maxZ);
 
             let exr_texture = new BaseTexture(scene);
             exr_texture._texture = engine.wrapWebGLTexture(ods_image.render_target.textures.color, false);

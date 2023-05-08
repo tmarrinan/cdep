@@ -58,8 +58,8 @@ void main() {
     gl_PointSize = 1.25;
 
     // Set point position
-    float depth_hint = 0.0025 * img_index; // favor image  with lower index when depth's match
-    gl_Position = ortho_projection * vec4(projected_azimuth, projected_inclination, -camera_distance + depth_hint, 1.0);
+    float depth_hint = 0.005 * img_index; // favor image with lower index when depth's match (index should be based on dist)
+    gl_Position = ortho_projection * vec4(projected_azimuth, projected_inclination, -camera_distance - depth_hint, 1.0);
 
     // Pass along texture coordinate and depth
     texcoord = vertex_texcoord;

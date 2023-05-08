@@ -45,12 +45,11 @@ void main() {
 
     // Backproject to new ODS panorama
     vec3 camera_spherical = vec3(camera_position.z, -camera_position.x, camera_position.y);
-    //vec3 camera_spherical = vec3(camera_position.z, camera_position.x, camera_position.y);
     vec3 vertex_direction = pt - camera_spherical;
     float magnitude = length(vertex_direction);
     float center_azimuth = (abs(vertex_direction.x) < EPSILON && abs(vertex_direction.y) < EPSILON) ?
-                        (1.0 - 0.5 * sign(vertex_direction.z)) * M_PI :
-                        atan(vertex_direction.y, vertex_direction.x);
+                           (1.0 - 0.5 * sign(vertex_direction.z)) * M_PI :
+                           atan(vertex_direction.y, vertex_direction.x);
     float center_inclination = acos(vertex_direction.z / magnitude);
 
     float camera_radius = 0.5 * camera_ipd * cos(center_inclination - (M_PI / 2.0));

@@ -12,6 +12,8 @@ import { BaseTexture } from '@babylonjs/core/Materials/Textures/baseTexture';
 
 import { OdsImage } from './modules/odsImage';
 
+const BASE_URL = import.meta.env.BASE_URL || '/';
+
 export default {
     data() {
         return {
@@ -65,8 +67,8 @@ export default {
         let source_plane = Plane.FromPositionAndNormal(Vector3.Zero(), new Vector3(0, 0, 1));
         let plane = CreatePlane('plane', {width: 20.0, height: 20.0, sourcePlane: source_plane});
         //plane.position.y = -5.0; 
-        let ods_image = new OdsImage(this.gl, '/data/office_dasp_2560x1200_0.33_nodenoise.exr', 'DASP', () => {
-        //let ods_image = new OdsImage(this.gl, '/data/office_cdep_2560x1200_0.33_nodenoise.exr', 'CDEP', () => {
+        let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_dasp_2560x1200_0.33_nodenoise.exr', 'DASP', () => {
+        //let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_cdep_2560x1200_0.33_nodenoise.exr', 'CDEP', () => {
             console.log(ods_image.exr);
             console.log(ods_image.exr_metadata);
 

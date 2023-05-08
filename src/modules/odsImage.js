@@ -1,8 +1,9 @@
 import {OpenExrReader} from './openExrReader.js';
 
 class OdsImage {
-    constructor(gl, exr_url, type, callback) {
+    constructor(gl, base_url, exr_url, type, callback) {
         this.gl = gl;
+        this.base_url = base_url;
         this.exr = null;
         this.exr_metadata = {};
         this.image_type = type; 
@@ -15,10 +16,10 @@ class OdsImage {
         this.vertex_texcoord_attrib = 1;
 
         let p_exr = this.getBinaryData(exr_url);
-        let p_dasp_vs = this.getTextData('/shaders/dasp.vert');
-        let p_dasp_fs = this.getTextData('/shaders/dasp.frag');
-        let p_dep_vs = this.getTextData('/shaders/dep.vert');
-        let p_dep_fs = this.getTextData('/shaders/dep.frag');
+        let p_dasp_vs = this.getTextData(this.base_url + 'shaders/dasp.vert');
+        let p_dasp_fs = this.getTextData(this.base_url + 'shaders/dasp.frag');
+        let p_dep_vs = this.getTextData(this.base_url + 'shaders/dep.vert');
+        let p_dep_fs = this.getTextData(this.base_url + 'shaders/dep.frag');
 
         Promise.all([p_exr, p_dasp_vs, p_dasp_fs, p_dep_vs, p_dep_fs])
         .then((results) => {
@@ -221,7 +222,7 @@ class OdsImage {
     }
 
     initializeCdepTextures() {
-
+        
     }
 
     initializeOdsRenderTargets() {

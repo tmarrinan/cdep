@@ -63,11 +63,11 @@ class OdsImage {
     }
 
     render(camera_position, near, far, img_callback) {
-        // Delete previous frame (reset both framebuffer and z-buffer)
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
-
         // Render to texture
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.render_target.framebuffer);
+
+        // Delete previous frame (reset both framebuffer and z-buffer)
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
         // Create projection matrix for equirectangular coordinates
         let left = 0.0;
@@ -209,7 +209,6 @@ class OdsImage {
                     pixels[row2 + 4 * i2  +3] = 255;
                 }
             }
-            console.log(pixels[0], pixels[1], pixels[2]);
 
             let img_canvas = document.createElement('canvas');
             img_canvas.width = this.exr.width;

@@ -62,7 +62,7 @@ class OdsImage {
         });
     }
 
-    render(camera_position, near, far) {
+    render(camera_position, near, far, img_callback) {
         // Delete previous frame (reset both framebuffer and z-buffer)
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
@@ -186,7 +186,47 @@ class OdsImage {
         }
 
         this.gl.useProgram(null);
+
+        let img = null;
+        if (img_callback) {
+            let pixels = new Uint8Array(this.exr.width * (2 * this.exr.height) * 4);
+            this.gl.readPixels(0, 0, this.exr.width, 2 * this.exr.height, this.gl.RGBA, this.gl.UNSIGNED_BYTE, pixels);
+            for (let j = 0; j < this.exr.height; j++) {
+                let row1 = 4 * this.exr.width * j;
+                let row2 = 4 * this.exr.width * (2 * this.exr.height - j - 1);
+                for (let i = 0; i < this.exr.width; i++) {
+                    let i2 = this.exr.width - i - 1;
+                    let r = pixels[row1 + 4 * i];
+                    let g = pixels[row1 + 4 * i + 1];
+                    let b = pixels[row1 + 4 * i + 2];
+                    pixels[row1 + 4 * i] = pixels[row2 + 4 * i2];
+                    pixels[row1 + 4 * i + 1] = pixels[row2 + 4 * i2 + 1];
+                    pixels[row1 + 4 * i + 2] = pixels[row2 + 4 * i2 + 2];
+                    pixels[row1 + 4 * i + 3] = 255;
+                    pixels[row2 + 4 * i2] = r;
+                    pixels[row2 + 4 * i2 + 1] = g;
+                    pixels[row2 + 4 * i2 + 2] = b;
+                    pixels[row2 + 4 * i2  +3] = 255;
+                }
+            }
+            console.log(pixels[0], pixels[1], pixels[2]);
+
+            let img_canvas = document.createElement('canvas');
+            img_canvas.width = this.exr.width;
+            img_canvas.height = 2 * this.exr.height;
+            let img_ctx = img_canvas.getContext('2d');
+            let img_data = img_ctx.createImageData(img_canvas.width, img_canvas.height);
+            img_data.data.set(pixels);
+            img_ctx.putImageData(img_data, 0, 0);
+
+            img_canvas.toBlob((img_blob) => {
+                img_callback(URL.createObjectURL(img_blob));
+            }, 'image/png');
+        }
+
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+
+        return img;
     }
 
     initializeOdsTextures() {

@@ -14,6 +14,7 @@ class OdsImage {
         this.ods_pointcloud = {vertex_array: null, num_points: 0};
         this.vertex_position_attrib = 0;
         this.vertex_texcoord_attrib = 1;
+        this.timer_ext = this.gl.getExtension('EXT_disjoint_timer_query_webgl2');
 
         let p_exr = this.getBinaryData(exr_url);
         let p_dasp_vs = this.getTextData(this.base_url + 'shaders/dasp.vert');
@@ -62,11 +63,24 @@ class OdsImage {
         });
     }
 
-    render(camera_position, near, far, img_callback) {
+    render(camera_position, near, far, use_timer, img_callback) {
+        let query;
+        if (use_timer) {
+            query = this.gl.createQuery();
+            this.gl.beginQuery(this.timer_ext.TIME_ELAPSED_EXT, query);
+        }
+
+        // Get handles to existing framebuffer and program
+        let c_program = this.gl.getParameter(this.gl.CURRENT_PROGRAM);
+        let c_frambuffer = this.gl.getParameter(this.gl.FRAMEBUFFER_BINDING);
+        let c_activetex = this.gl.getParameter(this.gl.ACTIVE_TEXTURE);
+        let c_texture = this.gl.getParameter(this.gl.TEXTURE_BINDING_2D);
+
         // Render to texture
         this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.render_target.framebuffer);
 
         // Delete previous frame (reset both framebuffer and z-buffer)
+        this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
         this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
         // Create projection matrix for equirectangular coordinates
@@ -113,7 +127,8 @@ class OdsImage {
                 this.gl.uniform1i(this.dasp_shader.uniforms.depths, 1);
 
                 this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
-                this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+                //this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+                this.gl.drawArrays(this.gl.POINTS, 0, this.ods_pointcloud.num_points);
                 this.gl.bindVertexArray(null);
                 
                 // Right eye
@@ -126,7 +141,8 @@ class OdsImage {
                 this.gl.uniform1i(this.dasp_shader.uniforms.depths, 1);
 
                 this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
-                this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+                //this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+                this.gl.drawArrays(this.gl.POINTS, 0, this.ods_pointcloud.num_points);
                 this.gl.bindVertexArray(null);
             }
         }
@@ -157,10 +173,8 @@ class OdsImage {
                 }
                 image_order.splice(insert_pos, 0, {index: i, cam_pos: relative_cam_pos, cam_pos_mag2: relative_cam_pos_mag2});
             }
-            console.log(image_order);
 
             // Draw right (bottom half of image) and left (top half of image) views
-            //let relative_cam_pos = new Float32Array(this.textures.length);
             for (let i = 0; i < 2; i++) {
                 this.gl.viewport(0, i * this.exr.height, this.exr.width, this.exr.height);
                 this.gl.uniform1f(this.dep_shader.uniforms.camera_eye, 2.0 * (i - 0.5));
@@ -179,15 +193,31 @@ class OdsImage {
                     this.gl.uniform1i(this.dep_shader.uniforms.depths, 1);
 
                     this.gl.bindVertexArray(this.ods_pointcloud.vertex_array);
-                    this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+                    //this.gl.drawElements(this.gl.POINTS, this.ods_pointcloud.num_points, this.gl.UNSIGNED_INT, 0);
+                    this.gl.drawArrays(this.gl.POINTS, 0, this.ods_pointcloud.num_points);
                     this.gl.bindVertexArray(null);
                 }
             }
         }
 
-        this.gl.useProgram(null);
+        this.gl.activeTexture(c_activetex);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, c_texture);
+        this.gl.useProgram(c_program);
 
-        let img = null;
+        if (use_timer) {
+        this.gl.endQuery(this.timer_ext.TIME_ELAPSED_EXT);
+            setTimeout(() => {
+                let q_available = this.gl.getQueryParameter(query, this.gl.QUERY_RESULT_AVAILABLE);
+                if (q_available) {
+                    let elapsed = this.gl.getQueryParameter(query, this.gl.QUERY_RESULT) / 1000000;
+                    console.log('Render Time: ' + elapsed.toFixed(3) + ' ms');
+                }
+                else {
+                    console.log('Render Time: not available');
+                }
+            }, 500);
+        }
+
         if (img_callback) {
             let pixels = new Uint8Array(this.exr.width * (2 * this.exr.height) * 4);
             this.gl.readPixels(0, 0, this.exr.width, 2 * this.exr.height, this.gl.RGBA, this.gl.UNSIGNED_BYTE, pixels);
@@ -223,9 +253,7 @@ class OdsImage {
             }, 'image/png');
         }
 
-        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-
-        return img;
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, c_frambuffer);
     }
 
     initializeOdsTextures() {
@@ -341,7 +369,7 @@ class OdsImage {
         // Create arrays for vertex positions and texture coordinates
         let vertices = new Float32Array(2 * size);
         let texcoords = new Float32Array(2 * size);
-        let indices = new Uint32Array(size);
+        //let indices = new Uint32Array(size);
         for (j = 0; j < this.exr.height; j++) {
             for (i = 0; i < this.exr.width; i++) {
                 let idx = j * this.exr.width + i;
@@ -353,7 +381,7 @@ class OdsImage {
                 vertices[2 * idx + 1] = inclination;
                 texcoords[2 * idx + 0] = norm_x;
                 texcoords[2 * idx + 1] = norm_y;
-                indices[idx] = idx;
+                //indices[idx] = idx;
             }
         }
 
@@ -371,15 +399,17 @@ class OdsImage {
         this.gl.enableVertexAttribArray(this.vertex_texcoord_attrib);
         this.gl.vertexAttribPointer(this.vertex_texcoord_attrib, 2, this.gl.FLOAT, false, 0, 0);
 
+        /*
         // Create buffer to store indices of each point
         let vertex_index_buffer = this.gl.createBuffer();
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, vertex_index_buffer);
         this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, indices, this.gl.STATIC_DRAW);
+        */
 
         // Unbind vertex array object and its buffers
         this.gl.bindVertexArray(null);
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
+        //this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
     }
 
     glslCreateShaderProgram(vert_source, frag_source) {

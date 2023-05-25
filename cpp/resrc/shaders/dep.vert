@@ -1,13 +1,11 @@
-#version 300 es
+#version 330
 
 precision highp float;
 
 #define M_PI 3.1415926535897932384626433832795
 #define EPSILON 0.000001
 
-uniform float img_ipd;
-uniform float img_focal_dist;
-uniform float eye; // left: +1.0, right: -1.0
+uniform float img_index;
 uniform vec3 camera_position;
 uniform float camera_ipd;
 uniform float camera_focal_dist;
@@ -25,19 +23,12 @@ void main() {
     // Calculate projected point position (relative to projection sphere center)
     float azimuth = vertex_position.x;
     float inclination = vertex_position.y;
-    vec3 projected_pt = vec3(img_focal_dist * cos(azimuth) * sin(inclination),
-                             img_focal_dist * sin(azimuth) * sin(inclination),
-                             img_focal_dist * cos(inclination));
-
-    // Calculate DASP camera position (relative to projection sphere center)
-    float eye_radius = 0.5 * img_ipd * cos(inclination - (M_PI / 2.0));
-    float eye_azimuth = azimuth + eye * acos(eye_radius / img_focal_dist);
-    vec3 eye_pt = vec3(eye_radius * cos(eye_azimuth),
-                       eye_radius * sin(eye_azimuth),
-                       0.0);
-
-    // Calculate 3D position of point (relative to projection sphere center)
-    vec3 pt = eye_pt + (texture(depths, vertex_texcoord).r * normalize(projected_pt - eye_pt));
+    
+    /*
+    float vertex_depth = texture(depths, vertex_texcoord).r;
+    vec3 pt = vec3(vertex_depth * cos(azimuth) * sin(inclination),
+                   vertex_depth * sin(azimuth) * sin(inclination),
+                   vertex_depth * cos(inclination));
 
     // Backproject to new ODS panorama
     //vec3 camera_spherical = vec3(camera_position.z, -camera_position.x, camera_position.y);
@@ -69,10 +60,17 @@ void main() {
     gl_PointSize = 1.25;
 
     // Set point position
-    float depth_hint = 0.0025 * eye; // favor left eye image when depth's match
-    gl_Position = ortho_projection * vec4(projected_azimuth, projected_inclination, -camera_distance + depth_hint, 1.0);
+    float depth_hint = 0.005 * img_index; // favor image with lower index when depth's match (index should be based on dist)
+    gl_Position = ortho_projection * vec4(projected_azimuth, projected_inclination, -camera_distance - depth_hint, 1.0);
 
     // Pass along texture coordinate and depth
     texcoord = vertex_texcoord;
     pt_depth = camera_distance;
+    */
+
+    gl_PointSize = 1.0;
+    gl_Position = ortho_projection * vec4(azimuth, inclination, -1.0, 1.0);
+
+    texcoord = vertex_texcoord;
+    pt_depth = 0.0;
 }

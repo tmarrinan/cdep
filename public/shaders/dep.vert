@@ -23,6 +23,7 @@ void main() {
     // Calculate projected point position (relative to projection sphere center)
     float azimuth = vertex_position.x;
     float inclination = vertex_position.y;
+    
     float vertex_depth = texture(depths, vertex_texcoord).r;
     vec3 pt = vec3(vertex_depth * cos(azimuth) * sin(inclination),
                    vertex_depth * sin(azimuth) * sin(inclination),

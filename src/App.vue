@@ -63,19 +63,22 @@ export default {
 
 
         // Create ODS image contruction object
+        let ods_loaded = false;
         let exr_material = new StandardMaterial('EXR_Material', scene);
         let source_plane = Plane.FromPositionAndNormal(Vector3.Zero(), new Vector3(0, 0, 1));
         let plane = CreatePlane('plane', {width: 20.0, height: 20.0, sourcePlane: source_plane});
         //plane.position.y = -5.0; 
         //let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_dasp_2560x1200_0.33_nodenoise.exr', 'DASP', () => {
-        let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_cdep_2560x1200_0.33_nodenoise.exr', 'CDEP', () => {
+        //let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_cdep_2560x1200_0.33_nodenoise.exr', 'CDEP', () => {
+        //let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_dasp_2560x1200_1.5_denoise.exr', 'DASP', () => {
+        let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_cdep_2560x1200_1.5_denoise.exr', 'CDEP', () => {
             console.log(ods_image.exr);
             console.log(ods_image.exr_metadata);
 
-            //ods_image.render([-0.15, 1.770, 0.65], camera.minZ, camera.maxZ);
-            ods_image.render([0.15, 1.770, 0.77], camera.minZ, camera.maxZ, (img_url) => {
-                window.open(img_url, '_blank');
-            });
+            ods_image.render([0.15, 1.770, 0.77], camera.minZ, camera.maxZ, false);
+            //ods_image.render([0.15, 1.770, 0.77], camera.minZ, camera.maxZ, false, (img_url) => {
+            //    window.open(img_url, '_blank');
+            //}); 
 
             let exr_texture = new BaseTexture(scene);
             exr_texture._texture = engine.wrapWebGLTexture(ods_image.render_target.textures.color, false);
@@ -83,7 +86,23 @@ export default {
             exr_material.diffuseTexture = exr_texture;
             exr_material.specularColor = new Color3(0.0, 0.0, 0.0);
             plane.material = exr_material;
+
+            ods_loaded = true;
         });
+
+        
+        // Animation
+        let time = 0.0;
+        scene.onBeforeRenderObservable.add(() => {
+            let delta_time = (1.0 / 60.0) * scene.getAnimationRatio();
+            time += delta_time;
+            if (ods_loaded && time > 1.5) {
+                //console.log('Render time: ' + (delta_time * 1000).toFixed(3) + ' ms');
+                ods_image.render([0.15, 1.770, 0.77], camera.minZ, camera.maxZ, true);
+                time = 0.0;
+            }
+        });
+        
 
         // Render every frame
         engine.runRenderLoop(() => {

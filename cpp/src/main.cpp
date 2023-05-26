@@ -56,7 +56,7 @@ void init();
 void render(glm::vec3& camera_position);
 void synthesizeOdsImage(glm::vec3& camera_position);
 void onResize(GLFWwindow* window, int width, int height);
-void initializeOdsTextures();
+void initializeOdsTextures(const char *file_prefix);
 void initializeOdsRenderTargets();
 void createOdsPointData();
 
@@ -162,7 +162,9 @@ void init()
 
     // Initialize ODS textures
     app.ods_format = OdsFormat::CDEP;
-    initializeOdsTextures();
+    initializeOdsTextures("./resrc/images/ods_cdep_cam1");
+    initializeOdsTextures("./resrc/images/ods_cdep_cam2");
+    initializeOdsTextures("./resrc/images/ods_cdep_cam3");
 
     // Initialize ODS render targets
     initializeOdsRenderTargets();
@@ -244,11 +246,23 @@ void onResize(GLFWwindow *window, int width, int height)
     app.window_height = height;
 }
 
-void initializeOdsTextures()
+void initializeOdsTextures(const char *file_prefix)
 {
-    // TODO: read color and depth images
-    app.ods_width = 2048;
-    app.ods_height = 1024;
+    int wc, hc, wd, hd;
+    float near, far;
+    int channels = 4;
+    char filename_png[96];
+    char filename_rvl[96];
+    snprintf(filename_png, 96, "%s/.png", file_prefix);
+    snprintf(filename_rvl, 96, "%s/.rvl", file_prefix);
+    uint8_t *cam1_color = iioReadImage(filename_png, &wc, &hc, &channels);
+    float *cam1_depth = iioReadRvlDepthImage(filename_rvl, &wd, &hd, &near, &far);
+    if (wc != wd || hc != hd)
+    {
+        fprintf(stderr, "Warning: width/height of color and depth images do not match\n");
+    }
+    app.ods_width = wc;
+    app.ods_height = hc;
 }
 
 void initializeOdsRenderTargets()

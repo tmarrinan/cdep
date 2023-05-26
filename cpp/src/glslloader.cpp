@@ -120,12 +120,6 @@ std::string glsl::shaderTypeToString(GLenum type)
         case GL_VERTEX_SHADER:
             shader_type = "vertex";
             break;
-        case GL_TESS_CONTROL_SHADER:
-            shader_type = "tessellation control";
-            break;
-        case GL_TESS_EVALUATION_SHADER:
-            shader_type = "tessellation evaluation";
-            break;
         case GL_GEOMETRY_SHADER:
             shader_type = "geometry";
             break;

@@ -18,6 +18,7 @@
 
 #define WINDOW_TITLE "CDEP Demo"
 
+enum OdsFormat {DASP, CDEP};
 
 typedef struct GlslProgram {
     GLuint program;
@@ -40,13 +41,20 @@ typedef struct AppData {
     // DASP / DEP images
     int ods_width;
     int ods_height;
+    OdsFormat ods_format;
     glm::mat4 ods_projection;
+    // Render target
+    GLuint render_texture_color;
+    GLuint render_texture_depth;
+    GLuint render_depth_buffer;
+    GLuint render_framebuffer;
 } AppData;
 
 AppData app;
 
 void init();
-void render();
+void render(glm::vec3& camera_position);
+void synthesizeOdsImage(glm::vec3& camera_position);
 void onResize(GLFWwindow* window, int width, int height);
 void initializeOdsTextures();
 void initializeOdsRenderTargets();
@@ -97,6 +105,7 @@ int main(int argc, char **argv)
     // Main render loop
     uint32_t frame_count = 0;
     double fps_start = glfwGetTime();
+    glm::vec3 camera_pos = glm::vec3(0.15, 1.77, 0.77);
     while (!glfwWindowShouldClose(app.window))
     {
         // Print frame rate
@@ -110,7 +119,7 @@ int main(int argc, char **argv)
         }
 
         // Render next frame
-        render();
+        render(camera_pos);
         glfwPollEvents();
 
         // Increment frame counter
@@ -128,7 +137,6 @@ void init()
 {
     // Set OpenGL settings
     glEnable(GL_DEPTH_TEST);
-    glViewport(0, 0, app.window_width, app.window_height);
 
     // Initialize vertex attributes
     app.vertex_position_attrib = 0;
@@ -153,6 +161,7 @@ void init()
     app.glsl_program["DEP"] = dep;
 
     // Initialize ODS textures
+    app.ods_format = OdsFormat::CDEP;
     initializeOdsTextures();
 
     // Initialize ODS render targets
@@ -165,31 +174,74 @@ void init()
     app.ods_projection = glm::ortho(0.0, 2.0 * M_PI, M_PI, 0.0, 0.1, 50.0); // TODO: update near/far based on image
 }
 
-void render()
+void render(glm::vec3& camera_position)
 {
+    // Synthesize ODS image
+    synthesizeOdsImage(camera_position);
+
+    // Delete previous frame (reset both framebuffer and z-buffer)
     glClearColor(0.1, 0.1, 0.4, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    
-    // C-DEP
-    glUseProgram(app.glsl_program["DEP"].program);
+    // Set viewport to entire screen
+    glViewport(0, 0, app.window_width, app.window_height);
 
-    glUniformMatrix4fv(app.glsl_program["DEP"].uniforms["ortho_projection"], 1, GL_FALSE, glm::value_ptr(app.ods_projection));
-
-    glBindVertexArray(app.ods_vertex_array);
-    glDrawArrays(GL_POINTS, 0, app.num_va_points);
-    glBindVertexArray(0);
-
-    glUseProgram(0);
 
     glfwSwapBuffers (app.window);
+}
+
+void synthesizeOdsImage(glm::vec3& camera_position)
+{
+    int i, j;
+
+    // Render to texture
+    glBindFramebuffer(GL_FRAMEBUFFER, app.render_framebuffer);
+
+    // Delete previous frame (reset both framebuffer and z-buffer)
+    glClearColor(1.0, 0.0, 0.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // DASP
+    if (app.ods_format == OdsFormat::DASP)
+    {
+
+    }
+    // C-DEP
+    else
+    {
+        glUseProgram(app.glsl_program["DEP"].program);
+
+        glUniform1f(app.glsl_program["DEP"].uniforms["camera_ipd"], 0.065);
+        glUniform1f(app.glsl_program["DEP"].uniforms["camera_focal_dist"], 1.95);
+        glUniformMatrix4fv(app.glsl_program["DEP"].uniforms["ortho_projection"], 1, GL_FALSE, glm::value_ptr(app.ods_projection));
+
+        // TODO: sort images based on closest
+
+        // Draw right (bottom half of image) and left (top half of image) views
+        for (i = 0; i < 2; i++)
+        {
+            glViewport(0, i * app.ods_height, app.ods_width, app.ods_height);
+            glUniform1f(app.glsl_program["DEP"].uniforms["camera_eye"], 2.0 * (i - 0.5));
+
+            for (j = 0; j < 3; j++)
+            {
+                glBindVertexArray(app.ods_vertex_array);
+                glDrawArrays(GL_POINTS, 0, app.num_va_points);
+                glBindVertexArray(0);
+            }
+        }
+    }
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glUseProgram(0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void onResize(GLFWwindow *window, int width, int height)
 {
     app.window_width = width;
     app.window_height = height;
-    glViewport(0, 0, app.window_width, app.window_height);
 }
 
 void initializeOdsTextures()
@@ -201,7 +253,51 @@ void initializeOdsTextures()
 
 void initializeOdsRenderTargets()
 {
+    // Create color render texture
+    glGenTextures(1, &(app.render_texture_color));
+    glBindTexture(GL_TEXTURE_2D, app.render_texture_color);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, app.ods_width, 2 * app.ods_height, 0, GL_RGBA, 
+                 GL_UNSIGNED_BYTE, NULL);
 
+    // Create depth render texture
+    glGenTextures(1, &(app.render_texture_depth));
+    glBindTexture(GL_TEXTURE_2D, app.render_texture_depth);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, app.ods_width, 2 * app.ods_height, 0, GL_RED, 
+                 GL_FLOAT, NULL);
+
+    // Unbind textures
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Create depth buffer object
+    glGenRenderbuffers(1, &(app.render_depth_buffer));
+    glBindRenderbuffer(GL_RENDERBUFFER, app.render_depth_buffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, app.ods_width, 2 * app.ods_height);
+
+    // Unbind depth buffer object
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+    // Create framebuffer object
+    glGenFramebuffers(1, &(app.render_framebuffer));
+    glBindFramebuffer(GL_FRAMEBUFFER, app.render_framebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                           app.render_texture_color, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D,
+                           app.render_texture_depth, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
+                              app.render_depth_buffer);
+    GLenum draw_buffers[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, draw_buffers);
+
+    // Unbind framebuffer object
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void createOdsPointData()

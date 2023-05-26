@@ -81,7 +81,7 @@ int iioWriteImagePng(const char *filename, int width, int height, int channels, 
 //
 int iioDecodeVle(int *p_buffer, int &p_idx, int &word, int &nibbles_written)
 {
-    int nibble;
+    uint32_t nibble;
     int value = 0;
     int bits = 29;
     do

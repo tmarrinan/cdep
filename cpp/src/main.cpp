@@ -162,9 +162,9 @@ void init()
 
     // Initialize ODS textures
     app.ods_format = OdsFormat::CDEP;
-    initializeOdsTextures("./resrc/images/ods_cdep_cam1");
-    initializeOdsTextures("./resrc/images/ods_cdep_cam2");
-    initializeOdsTextures("./resrc/images/ods_cdep_cam3");
+    initializeOdsTextures("./resrc/images/ods_cdep_camera_1");
+    initializeOdsTextures("./resrc/images/ods_cdep_camera_2");
+    initializeOdsTextures("./resrc/images/ods_cdep_camera_3");
 
     // Initialize ODS render targets
     initializeOdsRenderTargets();
@@ -253,16 +253,19 @@ void initializeOdsTextures(const char *file_prefix)
     int channels = 4;
     char filename_png[96];
     char filename_rvl[96];
-    snprintf(filename_png, 96, "%s/.png", file_prefix);
-    snprintf(filename_rvl, 96, "%s/.rvl", file_prefix);
-    uint8_t *cam1_color = iioReadImage(filename_png, &wc, &hc, &channels);
-    float *cam1_depth = iioReadRvlDepthImage(filename_rvl, &wd, &hd, &near, &far);
+    snprintf(filename_png, 96, "%s.png", file_prefix);
+    snprintf(filename_rvl, 96, "%s.rvl", file_prefix);
+    uint8_t *color = iioReadImage(filename_png, &wc, &hc, &channels);
+    float *depth = iioReadRvlDepthImage(filename_rvl, &wd, &hd, &near, &far);
     if (wc != wd || hc != hd)
     {
         fprintf(stderr, "Warning: width/height of color and depth images do not match\n");
     }
     app.ods_width = wc;
     app.ods_height = hc;
+
+    printf("%dx%d: near=%.3f, far=%.3f, center depth=%.3f\n", app.ods_width, app.ods_height,
+           near, far, depth[(app.ods_height / 2) * app.ods_width + (app.ods_width / 2)]);
 }
 
 void initializeOdsRenderTargets()

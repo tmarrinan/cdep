@@ -1,4 +1,4 @@
-#version 330
+#version 430
 
 precision highp float;
 
@@ -23,15 +23,13 @@ void main() {
     // Calculate projected point position (relative to projection sphere center)
     float azimuth = vertex_position.x;
     float inclination = vertex_position.y;
-    
-    /*
+
     float vertex_depth = texture(depths, vertex_texcoord).r;
     vec3 pt = vec3(vertex_depth * cos(azimuth) * sin(inclination),
                    vertex_depth * sin(azimuth) * sin(inclination),
                    vertex_depth * cos(inclination));
 
     // Backproject to new ODS panorama
-    //vec3 camera_spherical = vec3(camera_position.z, -camera_position.x, camera_position.y);
     vec3 camera_spherical = vec3(camera_position.z, camera_position.x, camera_position.y);
     vec3 vertex_direction = pt - camera_spherical;
     float magnitude = length(vertex_direction);
@@ -55,22 +53,14 @@ void main() {
                               mod(atan(img_sphere_pt.y, img_sphere_pt.x), 2.0 * M_PI);
     float projected_inclination = acos(img_sphere_pt.z / camera_focal_dist);
 
-
-    // Set point size (1.25 seems to be a good balance between filling small holes and blurring image)
-    gl_PointSize = 1.25;
+    // Set point size (1.25 or 1.5 seem to be a good balance between filling small holes and blurring image)
+    gl_PointSize = 1.5;
 
     // Set point position
-    float depth_hint = 0.005 * img_index; // favor image with lower index when depth's match (index should be based on dist)
+    float depth_hint = 0.0125 * img_index; // favor image with lower index when depth's match (index should be based on dist)
     gl_Position = ortho_projection * vec4(projected_azimuth, projected_inclination, -camera_distance - depth_hint, 1.0);
 
     // Pass along texture coordinate and depth
     texcoord = vertex_texcoord;
     pt_depth = camera_distance;
-    */
-
-    gl_PointSize = 1.0;
-    gl_Position = ortho_projection * vec4(azimuth, inclination, -1.0, 1.0);
-
-    texcoord = vertex_texcoord;
-    pt_depth = 0.0;
 }

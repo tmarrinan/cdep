@@ -2,6 +2,7 @@
 #include <cmath>
 #include <map>
 #include <string>
+#include <vector>
 #include "glad/gl.h"
 #include <GLFW/glfw3.h>
 #include <glm/mat4x4.hpp>
@@ -33,6 +34,7 @@ typedef struct AppData {
     // GLSL programs
     std::map<std::string,GlslProgram> glsl_program;
     // Vertex array
+    GLuint quad_vertex_array;
     GLuint ods_vertex_array;
     GLuint num_va_points;
     // Vertex attribs
@@ -43,11 +45,17 @@ typedef struct AppData {
     int ods_height;
     OdsFormat ods_format;
     glm::mat4 ods_projection;
+    std::vector<glm::vec3> camera_positions;
+    std::vector<GLuint> color_textures;
+    std::vector<GLuint> depth_textures;
     // Render target
     GLuint render_texture_color;
     GLuint render_texture_depth;
     GLuint render_depth_buffer;
     GLuint render_framebuffer;
+    // App view
+    glm::mat4 modelview;
+    glm::mat4 projection;
 } AppData;
 
 AppData app;
@@ -56,9 +64,10 @@ void init();
 void render(glm::vec3& camera_position);
 void synthesizeOdsImage(glm::vec3& camera_position);
 void onResize(GLFWwindow* window, int width, int height);
-void initializeOdsTextures(const char *file_prefix);
+void initializeOdsTextures(const char *file_prefix, float *camera_position);
 void initializeOdsRenderTargets();
 void createOdsPointData();
+void createQuad();
 
 int main(int argc, char **argv)
 {
@@ -73,7 +82,7 @@ int main(int argc, char **argv)
     app.window_height = 720;
 
     // Create a window and its OpenGL context
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -137,6 +146,7 @@ void init()
 {
     // Set OpenGL settings
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_PROGRAM_POINT_SIZE);
 
     // Initialize vertex attributes
     app.vertex_position_attrib = 0;
@@ -160,11 +170,26 @@ void init()
     glsl::getShaderProgramUniforms(dep.program, dep.uniforms);
     app.glsl_program["DEP"] = dep;
 
+    // Load regular (no lighting) shader
+    GlslProgram nolight;
+    nolight.program = glsl::createShaderProgram("./resrc/shaders/nolight.vert", "./resrc/shaders/nolight.frag");
+    glBindAttribLocation(nolight.program, app.vertex_position_attrib, "vertex_position");
+    glBindAttribLocation(nolight.program, app.vertex_texcoord_attrib, "vertex_texcoord");
+    glsl::linkShaderProgram(nolight.program);
+    glsl::getShaderProgramUniforms(nolight.program, nolight.uniforms);
+    app.glsl_program["nolight"] = nolight;
+
     // Initialize ODS textures
     app.ods_format = OdsFormat::CDEP;
-    initializeOdsTextures("./resrc/images/ods_cdep_camera_1");
-    initializeOdsTextures("./resrc/images/ods_cdep_camera_2");
-    initializeOdsTextures("./resrc/images/ods_cdep_camera_3");
+    double near = 0.1;
+    double far = 50.0;
+    // virtual cam:            0.150, 1.770, 0.770
+    float cam_position1[3] = {-0.080, 1.820, 0.750};
+    float cam_position2[3] = {-0.275, 1.620, 0.600};
+    float cam_position3[3] = { 0.275, 1.700, 0.850};
+    initializeOdsTextures("./resrc/images/ods_cdep_camera_1", cam_position1);
+    initializeOdsTextures("./resrc/images/ods_cdep_camera_2", cam_position2);
+    initializeOdsTextures("./resrc/images/ods_cdep_camera_3", cam_position3);
 
     // Initialize ODS render targets
     initializeOdsRenderTargets();
@@ -172,8 +197,15 @@ void init()
     // Create ODS pointcloud model
     createOdsPointData();
 
+    // Create quad for rendering
+    createQuad();
+
     // Set ODS projection matrix
-    app.ods_projection = glm::ortho(0.0, 2.0 * M_PI, M_PI, 0.0, 0.1, 50.0); // TODO: update near/far based on image
+    app.ods_projection = glm::ortho(2.0 * M_PI, 0.0, M_PI, 0.0, near, far);
+
+    // Set App view modelview and projection matrices
+    app.modelview = glm::mat4(1.0);
+    app.projection = glm::mat4(1.0);
 }
 
 void render(glm::vec3& camera_position)
@@ -187,6 +219,22 @@ void render(glm::vec3& camera_position)
 
     // Set viewport to entire screen
     glViewport(0, 0, app.window_width, app.window_height);
+    
+    // Draw synthesized view
+    glUseProgram(app.glsl_program["nolight"].program);
+
+    glUniformMatrix4fv(app.glsl_program["nolight"].uniforms["modelview"], 1, GL_FALSE, glm::value_ptr(app.modelview));
+    glUniformMatrix4fv(app.glsl_program["nolight"].uniforms["projection"], 1, GL_FALSE, glm::value_ptr(app.projection));
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, app.render_texture_color);
+    glUniform1i(app.glsl_program["nolight"].uniforms["image"], 0);
+
+    glBindVertexArray(app.quad_vertex_array);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
+    glBindVertexArray(0);
+
+    glUseProgram(0);
 
 
     glfwSwapBuffers (app.window);
@@ -200,7 +248,7 @@ void synthesizeOdsImage(glm::vec3& camera_position)
     glBindFramebuffer(GL_FRAMEBUFFER, app.render_framebuffer);
 
     // Delete previous frame (reset both framebuffer and z-buffer)
-    glClearColor(1.0, 0.0, 0.0, 1.0);
+    glClearColor(0.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // DASP
@@ -225,8 +273,20 @@ void synthesizeOdsImage(glm::vec3& camera_position)
             glViewport(0, i * app.ods_height, app.ods_width, app.ods_height);
             glUniform1f(app.glsl_program["DEP"].uniforms["camera_eye"], 2.0 * (i - 0.5));
 
-            for (j = 0; j < 3; j++)
+            for (j = 0; j < app.color_textures.size(); j++)
             {
+                if (j == 1) continue;
+                glm::vec3 relative_cam_pos = camera_position - app.camera_positions[j];
+                glUniform1f(app.glsl_program["DEP"].uniforms["img_index"], (float)j);
+                glUniform3fv(app.glsl_program["DEP"].uniforms["camera_position"], 1, glm::value_ptr(relative_cam_pos));
+
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, app.color_textures[j]);
+                glUniform1i(app.glsl_program["DEP"].uniforms["image"], 0);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, app.depth_textures[j]);
+                glUniform1i(app.glsl_program["DEP"].uniforms["depths"], 1);
+
                 glBindVertexArray(app.ods_vertex_array);
                 glDrawArrays(GL_POINTS, 0, app.num_va_points);
                 glBindVertexArray(0);
@@ -246,8 +306,9 @@ void onResize(GLFWwindow *window, int width, int height)
     app.window_height = height;
 }
 
-void initializeOdsTextures(const char *file_prefix)
+void initializeOdsTextures(const char *file_prefix, float *camera_position)
 {
+    // Read in color and depth images
     int wc, hc, wd, hd;
     float near, far;
     int channels = 4;
@@ -264,8 +325,34 @@ void initializeOdsTextures(const char *file_prefix)
     app.ods_width = wc;
     app.ods_height = hc;
 
-    printf("%dx%d: near=%.3f, far=%.3f, center depth=%.3f\n", app.ods_width, app.ods_height,
-           near, far, depth[(app.ods_height / 2) * app.ods_width + (app.ods_width / 2)]);
+    // Create color texture
+    GLuint tex_color;
+    glGenTextures(1, &tex_color);
+    glBindTexture(GL_TEXTURE_2D, tex_color);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, app.ods_width, app.ods_height, 0, GL_RGBA,
+                 GL_UNSIGNED_BYTE, color);
+
+    // Create depth texture
+    GLuint tex_depth;
+    glGenTextures(1, &tex_depth);
+    glBindTexture(GL_TEXTURE_2D, tex_depth);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, app.ods_width, app.ods_height, 0, GL_RED,
+                 GL_FLOAT, depth);
+
+    // Unbind textures
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    app.color_textures.push_back(tex_color);
+    app.depth_textures.push_back(tex_depth);
+    app.camera_positions.push_back(glm::vec3(camera_position[0], camera_position[1], camera_position[2]));
 }
 
 void initializeOdsRenderTargets()
@@ -292,6 +379,7 @@ void initializeOdsRenderTargets()
 
     // Unbind textures
     glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
 
     // Create depth buffer object
     glGenRenderbuffers(1, &(app.render_depth_buffer));
@@ -338,7 +426,7 @@ void createOdsPointData()
             double norm_x = (i + 0.5) / (double)app.ods_width;
             double norm_y = (j + 0.5) / (double)app.ods_height;
             double azimuth = 2.0 * M_PI * (1.0 - norm_x);
-            double inclination = M_PI * (1.0 - norm_y);
+            double inclination = M_PI * norm_y;
             vertices[2 * idx + 0] = azimuth;
             vertices[2 * idx + 1] = inclination;
             texcoords[2 * idx + 0] = norm_x;
@@ -365,4 +453,60 @@ void createOdsPointData()
     // Unbind vertex array object and its buffers
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    // Free memory
+    delete[] vertices;
+    delete[] texcoords;
+}
+
+void createQuad()
+{
+    // Create a new vertex array object
+    glGenVertexArrays(1, &(app.quad_vertex_array));
+    glBindVertexArray(app.quad_vertex_array);
+
+    // Create arrays for vertex positions and texture coordinates
+    GLfloat vertices[12] = {
+        -1.0, -1.0, 0.0,
+         1.0, -1.0, 0.0,
+         1.0,  1.0, 0.0,
+        -1.0,  1.0, 0.0
+    };
+    GLfloat texcoords[8] = {
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0
+    };
+    GLushort indices[6] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+
+    // Create buffer to store vertex positions
+    GLuint vertex_position_buffer;
+    glGenBuffers(1, &vertex_position_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_position_buffer);
+    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(app.vertex_position_attrib);
+    glVertexAttribPointer(app.vertex_position_attrib, 3, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store vertex texcoords
+    GLuint vertex_texcoord_buffer;
+    glGenBuffers(1, &vertex_texcoord_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_texcoord_buffer);
+    glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(GLfloat), texcoords, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(app.vertex_texcoord_attrib);
+    glVertexAttribPointer(app.vertex_texcoord_attrib, 2, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store indices of each point
+    GLuint vertex_index_buffer;
+    glGenBuffers(1, &vertex_index_buffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertex_index_buffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLushort), indices, GL_STATIC_DRAW);
+
+    // Unbind vertex array object and its buffers
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }

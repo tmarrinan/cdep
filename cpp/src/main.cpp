@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
@@ -7,6 +8,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/norm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include "glslloader.h"
@@ -44,6 +46,8 @@ typedef struct AppData {
     int ods_width;
     int ods_height;
     OdsFormat ods_format;
+    int ods_max_views;
+    int ods_num_views;
     glm::mat4 ods_projection;
     std::vector<glm::vec3> camera_positions;
     std::vector<GLuint> color_textures;
@@ -68,6 +72,7 @@ void initializeOdsTextures(const char *file_prefix, float *camera_position);
 void initializeOdsRenderTargets();
 void createOdsPointData();
 void createQuad();
+void determineViews(glm::vec3& camera_position, int num_views, std::vector<int>& view_indices);
 
 int main(int argc, char **argv)
 {
@@ -181,12 +186,14 @@ void init()
 
     // Initialize ODS textures
     app.ods_format = OdsFormat::CDEP;
+    app.ods_num_views = 3;
+    app.ods_max_views = 3;
     double near = 0.1;
     double far = 50.0;
-    // virtual cam:            0.150, 1.770, 0.770
-    float cam_position1[3] = {-0.080, 1.820, 0.750};
-    float cam_position2[3] = {-0.275, 1.620, 0.600};
-    float cam_position3[3] = { 0.275, 1.700, 0.850};
+    //                         0.150, 1.770, 0.770
+    float cam_position1[3] = {-0.080, 1.820, 0.750}; // dist = 0.23620
+    float cam_position2[3] = {-0.275, 1.620, 0.600}; // dist = 0.48169
+    float cam_position3[3] = { 0.275, 1.700, 0.850}; // dist = 0.16409
     initializeOdsTextures("./resrc/images/ods_cdep_camera_1", cam_position1);
     initializeOdsTextures("./resrc/images/ods_cdep_camera_2", cam_position2);
     initializeOdsTextures("./resrc/images/ods_cdep_camera_3", cam_position3);
@@ -251,12 +258,12 @@ void synthesizeOdsImage(glm::vec3& camera_position)
     glClearColor(0.0, 0.0, 0.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // DASP
+    // DASP / SOS
     if (app.ods_format == OdsFormat::DASP)
     {
 
     }
-    // C-DEP
+    // DEP / C-DEP
     else
     {
         glUseProgram(app.glsl_program["DEP"].program);
@@ -265,7 +272,10 @@ void synthesizeOdsImage(glm::vec3& camera_position)
         glUniform1f(app.glsl_program["DEP"].uniforms["camera_focal_dist"], 1.95);
         glUniformMatrix4fv(app.glsl_program["DEP"].uniforms["ortho_projection"], 1, GL_FALSE, glm::value_ptr(app.ods_projection));
 
-        // TODO: sort images based on closest
+        // Get nearest N bounding images
+        std::vector<int> view_indices;
+        int num_views = std::min(app.ods_num_views, app.ods_max_views);
+        determineViews(camera_position, num_views, view_indices);
 
         // Draw right (bottom half of image) and left (top half of image) views
         for (i = 0; i < 2; i++)
@@ -273,18 +283,17 @@ void synthesizeOdsImage(glm::vec3& camera_position)
             glViewport(0, i * app.ods_height, app.ods_width, app.ods_height);
             glUniform1f(app.glsl_program["DEP"].uniforms["camera_eye"], 2.0 * (i - 0.5));
 
-            for (j = 0; j < app.color_textures.size(); j++)
+            for (j = 0; j < num_views; j++)
             {
-                if (j == 1) continue;
-                glm::vec3 relative_cam_pos = camera_position - app.camera_positions[j];
+                glm::vec3 relative_cam_pos = camera_position - app.camera_positions[view_indices[j]];
                 glUniform1f(app.glsl_program["DEP"].uniforms["img_index"], (float)j);
                 glUniform3fv(app.glsl_program["DEP"].uniforms["camera_position"], 1, glm::value_ptr(relative_cam_pos));
 
                 glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, app.color_textures[j]);
+                glBindTexture(GL_TEXTURE_2D, app.color_textures[view_indices[j]]);
                 glUniform1i(app.glsl_program["DEP"].uniforms["image"], 0);
                 glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_2D, app.depth_textures[j]);
+                glBindTexture(GL_TEXTURE_2D, app.depth_textures[view_indices[j]]);
                 glUniform1i(app.glsl_program["DEP"].uniforms["depths"], 1);
 
                 glBindVertexArray(app.ods_vertex_array);
@@ -298,6 +307,16 @@ void synthesizeOdsImage(glm::vec3& camera_position)
     glBindTexture(GL_TEXTURE_2D, 0);
     glUseProgram(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    /*
+    uint8_t *pixels = new uint8_t[app.ods_width * app.ods_height * 8];
+    glBindTexture(GL_TEXTURE_2D, app.render_texture_color);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    iioWriteImagePng("novel_ods_cdep_cpp.png", app.ods_width, app.ods_height * 2, 4, pixels);
+    delete[] pixels;
+    exit(0);
+    */
 }
 
 void onResize(GLFWwindow *window, int width, int height)
@@ -312,16 +331,25 @@ void initializeOdsTextures(const char *file_prefix, float *camera_position)
     int wc, hc, wd, hd;
     float near, far;
     int channels = 4;
+
     char filename_png[96];
-    char filename_rvl[96];
     snprintf(filename_png, 96, "%s.png", file_prefix);
-    snprintf(filename_rvl, 96, "%s.rvl", file_prefix);
     uint8_t *color = iioReadImage(filename_png, &wc, &hc, &channels);
-    float *depth = iioReadRvlDepthImage(filename_rvl, &wd, &hd, &near, &far);
-    if (wc != wd || hc != hd)
-    {
-        fprintf(stderr, "Warning: width/height of color and depth images do not match\n");
-    }
+
+    //char filename_rvl[96];
+    //snprintf(filename_rvl, 96, "%s.rvl", file_prefix);
+    //float *depth = iioReadRvlDepthImage(filename_rvl, &wd, &hd, &near, &far);
+    //if (wc != wd || hc != hd)
+    //{
+    //    fprintf(stderr, "Warning: width/height of color and depth images do not match\n");
+    //}
+
+    char filename_depth[96];
+    snprintf(filename_depth, 96, "%s.depth", file_prefix);
+    char *depth_buf;
+    iioReadFile(filename_depth, &depth_buf);
+    float *depth = reinterpret_cast<float*>(depth_buf);
+
     app.ods_width = wc;
     app.ods_height = hc;
 
@@ -349,6 +377,11 @@ void initializeOdsTextures(const char *file_prefix, float *camera_position)
 
     // Unbind textures
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Free memory
+    iioFreeImage(color);
+    //iioFreeRvlDepthImage(depth);
+    free(depth);
 
     app.color_textures.push_back(tex_color);
     app.depth_textures.push_back(tex_depth);
@@ -509,4 +542,84 @@ void createQuad()
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+void determineViews(glm::vec3& camera_position, int num_views, std::vector<int>& view_indices)
+{
+    // Start by finding the closest view
+    int i, j, closest_sign_x, closest_sign_y, closest_sign_z;
+    float closest_dist2 = 9.9e12;
+    int closest_index = -1;
+    int x_diff = 0;
+    int y_diff = 0;
+    int z_diff = 0;
+    for (i = 0; i < app.ods_num_views; i++)
+    {
+        glm::vec3 camera_dir = camera_position - app.camera_positions[i];
+        float dist2 = glm::length2(camera_dir);
+        if (dist2 < closest_dist2)
+        {
+            closest_dist2 = dist2;
+            closest_index = i;
+            closest_sign_x = std::signbit(camera_dir[0]);
+            closest_sign_y = std::signbit(camera_dir[1]);
+            closest_sign_z = std::signbit(camera_dir[2]);
+        }
+    }
+    view_indices.push_back(closest_index);
+
+    // Add closest views that differ in maximum number of axes
+    if (num_views >= 2)
+    {
+        for (j = 1; j < num_views; j++)
+        {
+            int next_index = -1;
+            float next_dist2 = 9.9e12;
+            int next_dim_diff = 0;
+            for (i = 0; i < app.ods_num_views; i++)
+            {
+                if (std::find(view_indices.begin(), view_indices.end(), i) != view_indices.end())
+                {
+                    continue;
+                }
+
+                glm::vec3 camera_dir = camera_position - app.camera_positions[i];
+                float dist2 = glm::length2(camera_dir);
+                int camera_sign_x = std::signbit(camera_dir[0]);
+                int camera_sign_y = std::signbit(camera_dir[1]);
+                int camera_sign_z = std::signbit(camera_dir[2]);
+
+                int cam_diff_x = x_diff || (closest_sign_x ^ camera_sign_x);
+                int cam_diff_y = y_diff || (closest_sign_y ^ camera_sign_y);
+                int cam_diff_z = z_diff || (closest_sign_z ^ camera_sign_z);
+                int dim_diff = cam_diff_x + cam_diff_y + cam_diff_z;
+                if (dim_diff > next_dim_diff || (dim_diff == next_dim_diff && dist2 < next_dist2))
+                {
+                    next_dim_diff = dim_diff;
+                    x_diff = cam_diff_x;
+                    y_diff = cam_diff_y;
+                    z_diff = cam_diff_z;
+                    next_dist2 = dist2;
+                    next_index = i;
+                }
+            }
+            view_indices.push_back(next_index);
+        }
+    }
+
+    // Sort based on distance
+    for (j = 0; j < view_indices.size() - 1; j++)
+    {
+        for (i = j + 1; i < view_indices.size(); i++)
+        {
+            float d1 = glm::distance2(camera_position, app.camera_positions[view_indices[j]]);
+            float d2 = glm::distance2(camera_position, app.camera_positions[view_indices[j + 1]]);
+            if (d2 < d1)
+            {
+                int tmp_idx = view_indices[i];
+                view_indices[i] = view_indices[j];
+                view_indices[j] = tmp_idx;
+            }
+        }
+    }
 }

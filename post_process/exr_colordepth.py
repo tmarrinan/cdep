@@ -59,6 +59,8 @@ def main():
         col_img = Image.fromarray(col_pixels, 'RGBA')
         col_img.save(f'ods_cdep_{view}.png', 'PNG')
     
+        depth_channel[view].astype(np.float32).tofile(f'ods_cdep_{view}.depth')
+        
         depth_u16 = depth_channel[view].flatten();
         depth_u16 = np.piecewise(depth_u16, [depth_u16 < far, depth_u16 > far], [lambda d: 1.0 - (((1.0/d) - (1.0/near)) / ((1.0/far) - (1.0/near))), lambda d: 0.0])
         depth_u16 *= 65535.0

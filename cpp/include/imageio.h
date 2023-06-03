@@ -13,6 +13,6 @@ int iioWriteImageJpeg(const char *filename, int width, int height, int channels,
 int iioWriteImagePng(const char *filename, int width, int height, int channels, uint8_t *pixels);
 
 static int iioDecodeVle(int *p_buffer, int &p_idx, int &word, int &nibbles_written);
-static int iioReadFile(const char* filename, char** data_ptr);
+int iioReadFile(const char* filename, char** data_ptr);
 
 #endif // IMAGEIO_H

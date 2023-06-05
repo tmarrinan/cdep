@@ -71,16 +71,18 @@ typedef struct AppData {
     double mouse_y;
     double camera_yaw;
     double camera_pitch;
+    glm::vec3 synthesized_position;
 } AppData;
 
 AppData app;
 
 void init();
-void render(glm::vec3& camera_position);
+void render();
 void synthesizeOdsImage(glm::vec3& camera_position);
 void onResize(GLFWwindow* window, int width, int height);
 void onMouseButton(GLFWwindow* window, int button, int action, int mods);
 void onMouseMove(GLFWwindow* window, double x_pos, double y_pos);
+void onKeyboardInput(GLFWwindow* window, int key, int scancode, int action, int mods);
 void initializeOdsTextures(const char *file_prefix, float *camera_position);
 void initializeOdsRenderTargets();
 void createOdsPointData();
@@ -126,12 +128,12 @@ int main(int argc, char **argv)
 
     // Set window resize callback
     glfwSetWindowSizeCallback(app.window, onResize);
-
     // Set mouse button callback
     glfwSetMouseButtonCallback(app.window, onMouseButton);
-
     // Set mouse move callback
     glfwSetCursorPosCallback(app.window, onMouseMove);
+    // Set keyboard input callback
+    glfwSetKeyCallback(app.window, onKeyboardInput);
 
     // Initialize app
     init();
@@ -139,7 +141,7 @@ int main(int argc, char **argv)
     // Main render loop
     uint32_t frame_count = 0;
     double fps_start = glfwGetTime();
-    glm::vec3 camera_pos = glm::vec3(0.15, 1.77, 0.77);
+    double start_time = fps_start;
     while (!glfwWindowShouldClose(app.window))
     {
         // Print frame rate
@@ -152,8 +154,13 @@ int main(int argc, char **argv)
             fps_start = now;
         }
 
+        // Animation - synthesize view
+        double t = now - start_time;
+        app.synthesized_position = glm::vec3(0.0, 1.70, 0.725) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
+        synthesizeOdsImage(app.synthesized_position);
+
         // Render next frame
-        render(camera_pos);
+        render();
         glfwPollEvents();
 
         // Increment frame counter
@@ -218,6 +225,7 @@ void init()
 #else
     // C-DEP
     app.ods_format = OdsFormat::CDEP;
+    /*
     app.ods_num_views = 3;
     app.ods_max_views = 3;
     double near = 0.1;
@@ -228,6 +236,27 @@ void init()
     initializeOdsTextures("./resrc/images/ods_cdep_camera_1", cam_position1);
     initializeOdsTextures("./resrc/images/ods_cdep_camera_2", cam_position2);
     initializeOdsTextures("./resrc/images/ods_cdep_camera_3", cam_position3);
+    */
+    app.ods_num_views = 8;
+    app.ods_max_views = 4;
+    double near = 0.1;
+    double far = 50.0;
+    float cam_position1[3] = {-0.35, 1.85, 0.55};
+    float cam_position2[3] = { 0.35, 1.55, 0.90};
+    float cam_position3[3] = {-0.10, 1.75, 0.85};
+    float cam_position4[3] = { 0.25, 1.70, 0.60};
+    float cam_position5[3] = {-0.30, 1.67, 0.75};
+    float cam_position6[3] = {-0.20, 1.60, 0.70};
+    float cam_position7[3] = { 0.15, 1.78, 0.57};
+    float cam_position8[3] = { 0.05, 1.82, 0.87};
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_1", cam_position1);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_2", cam_position2);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_3", cam_position3);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_4", cam_position4);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_5", cam_position5);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_6", cam_position6);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_7", cam_position7);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_8", cam_position8);
 #endif
 
     // Initialize ODS render targets
@@ -254,19 +283,21 @@ void init()
     app.view_pan = false;
     app.camera_yaw = 0.0;
     app.camera_pitch = 0.0;
+
+    app.synthesized_position = glm::vec3(0.15, 1.77, 0.77);
+
+    // Synthesize ODS image
+    //synthesizeOdsImage(app.synthesized_position);
 }
 
-void render(glm::vec3& camera_position)
+void render()
 {
-    // Synthesize ODS image
-    synthesizeOdsImage(camera_position);
+    // Set viewport to entire screen
+    glViewport(0, 0, app.window_width, app.window_height);
 
     // Delete previous frame (reset both framebuffer and z-buffer)
     glClearColor(0.1, 0.1, 0.4, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Set viewport to entire screen
-    glViewport(0, 0, app.window_width, app.window_height);
     
     // Draw synthesized view
     glUseProgram(app.glsl_program["nolight"].program);
@@ -452,6 +483,42 @@ void onMouseMove(GLFWwindow* window, double x_pos, double y_pos)
 
         app.mouse_x = x_pos;
         app.mouse_y = y_pos;
+    }
+}
+
+void onKeyboardInput(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (action == GLFW_PRESS || action == GLFW_REPEAT)
+    {
+        bool new_view = true;
+        switch (key)
+        {
+            case GLFW_KEY_A:
+                app.synthesized_position[0] -= 0.02;
+                break;
+            case GLFW_KEY_D:
+                app.synthesized_position[0] += 0.02;
+                break;
+            case GLFW_KEY_F:
+                app.synthesized_position[1] -= 0.02;
+                break;
+            case GLFW_KEY_R:
+                app.synthesized_position[1] += 0.02;
+                break;
+            case GLFW_KEY_W:
+                app.synthesized_position[2] -= 0.02;
+                break;
+            case GLFW_KEY_S:
+                app.synthesized_position[2] += 0.02;
+                break;
+            default:
+                new_view = false;
+                break;
+        }
+        if (new_view)
+        {
+            synthesizeOdsImage(app.synthesized_position);
+        }
     }
 }
 
@@ -773,6 +840,7 @@ void determineViews(glm::vec3& camera_position, int num_views, std::vector<int>&
     // Add closest views that differ in maximum number of axes
     if (num_views >= 2)
     {
+        int diff_axis = 0; // 0: all, 1: x, 2: y, 3: z
         for (j = 1; j < num_views; j++)
         {
             int next_index = -1;
@@ -794,7 +862,11 @@ void determineViews(glm::vec3& camera_position, int num_views, std::vector<int>&
                 int cam_diff_x = x_diff || (closest_sign_x ^ camera_sign_x);
                 int cam_diff_y = y_diff || (closest_sign_y ^ camera_sign_y);
                 int cam_diff_z = z_diff || (closest_sign_z ^ camera_sign_z);
-                int dim_diff = cam_diff_x + cam_diff_y + cam_diff_z;
+                int dim_diff;
+                if (diff_axis == 0)      dim_diff = cam_diff_x + cam_diff_y + cam_diff_z;
+                else if (diff_axis == 1) dim_diff = cam_diff_x + (1 - cam_diff_y) + (1 - cam_diff_z);
+                else if (diff_axis == 2) dim_diff = (1 - cam_diff_x) + cam_diff_y + (1 - cam_diff_z);
+                else                     dim_diff = (1 - cam_diff_x) + (1 - cam_diff_y) + cam_diff_z;
                 if (dim_diff > next_dim_diff || (dim_diff == next_dim_diff && dist2 < next_dist2))
                 {
                     next_dim_diff = dim_diff;
@@ -806,6 +878,7 @@ void determineViews(glm::vec3& camera_position, int num_views, std::vector<int>&
                 }
             }
             view_indices.push_back(next_index);
+            diff_axis = (diff_axis + 1) % 4;
         }
     }
 

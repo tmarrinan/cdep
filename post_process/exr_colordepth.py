@@ -8,8 +8,9 @@ from PIL import Image
 
 
 def main():
-    #exr = OpenEXR.InputFile('../public/data/office_cdep_2560x1200_1.5_denoise.exr')
-    exr = OpenEXR.InputFile('../public/data/office_dasp_2560x1200_1.5_denoise.exr')
+    output_name = 'ods_cdep_4k_'
+    exr = OpenEXR.InputFile('../public/data/office_cdep_4096x2048_1.5_denoise.exr')
+    #exr = OpenEXR.InputFile('../public/data/office_dasp_2560x1200_1.5_denoise.exr')
     
     header = exr.header()
     dw = header['dataWindow']
@@ -58,16 +59,16 @@ def main():
     for view in color_channels:
         col_pixels = hdr2srgb(color_channels[view], isize)
         col_img = Image.fromarray(col_pixels, 'RGBA')
-        col_img.save(f'ods_cdep_{view}.png', 'PNG')
+        col_img.save(f'{output_name}{view}.png', 'PNG')
     
-        depth_channel[view].astype(np.float32).tofile(f'ods_cdep_{view}.depth')
+        depth_channel[view].astype(np.float32).tofile(f'{output_name}{view}.depth')
         
         depth_u16 = depth_channel[view].flatten();
         depth_u16 = np.piecewise(depth_u16, [depth_u16 < far, depth_u16 > far], [lambda d: 1.0 - (((1.0/d) - (1.0/near)) / ((1.0/far) - (1.0/near))), lambda d: 0.0])
         depth_u16 *= 65535.0
         depth_buffer = np.asarray(depth_u16, dtype=np.uint16)
         depth_rvl = compressRvl(depth_buffer)
-        rvl = open(f'ods_cdep_{view}.rvl', 'wb')
+        rvl = open(f'{output_name}{view}.rvl', 'wb')
         rvl.write('RVL\n'.encode('utf-8'))
         rvl.write(struct.pack('<II', depth_channel[view].shape[1], depth_channel[view].shape[0]))
         rvl.write(struct.pack('ff', near, far))

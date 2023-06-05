@@ -8,7 +8,8 @@ from PIL import Image
 
 
 def main():
-    exr = OpenEXR.InputFile('../public/data/office_cdep_2560x1200_1.5_denoise.exr')
+    #exr = OpenEXR.InputFile('../public/data/office_cdep_2560x1200_1.5_denoise.exr')
+    exr = OpenEXR.InputFile('../public/data/office_dasp_2560x1200_1.5_denoise.exr')
     
     header = exr.header()
     dw = header['dataWindow']

@@ -53,14 +53,14 @@ void main() {
                               mod(atan(img_sphere_pt.y, img_sphere_pt.x), 2.0 * M_PI);
     float projected_inclination = acos(img_sphere_pt.z / camera_focal_dist);
 
-    // Set point size (1.25, 1.5, or 2.0 seem to be a good balance between filling small holes and blurring image)
+    // Set point size (1.25 seems to be a good balance between filling small holes and blurring image)
     //gl_PointSize = 1.0;
     float size_ratio = vertex_depth / camera_distance;
     float size_scale = 1.1 + (0.4 - (0.16 * min(camera_distance, 2.5))); // scale ranges from 1.1 to 1.5
     gl_PointSize = size_scale * size_ratio;
 
     // Set point position
-    float depth_hint = 0.035 * img_index; // favor image with lower index when depth's match (index should be based on dist)
+    float depth_hint = 0.015 * img_index; // favor image with lower index when depth's match (index should be based on dist)
     gl_Position = ortho_projection * vec4(projected_azimuth, projected_inclination, -camera_distance - depth_hint, 1.0);
 
     // Pass along texture coordinate and depth

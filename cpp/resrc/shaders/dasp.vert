@@ -37,7 +37,8 @@ void main() {
                        0.0);
 
     // Calculate 3D position of point (relative to projection sphere center)
-    vec3 pt = eye_pt + (texture(depths, vertex_texcoord).r * normalize(projected_pt - eye_pt));
+    float vertex_depth = texture(depths, vertex_texcoord).r;
+    vec3 pt = eye_pt + (vertex_depth * normalize(projected_pt - eye_pt));
 
     // Backproject to new ODS panorama
     //vec3 camera_spherical = vec3(camera_position.z, -camera_position.x, camera_position.y);
@@ -66,7 +67,10 @@ void main() {
 
 
     // Set point size (1.25 seems to be a good balance between filling small holes and blurring image)
-    gl_PointSize = 1.25;
+    //gl_PointSize = 1.25;
+    float size_ratio = vertex_depth / camera_distance;
+    float size_scale = 1.1 + (0.4 - (0.16 * min(camera_distance, 2.5))); // scale ranges from 1.1 to 1.5
+    gl_PointSize = size_scale * size_ratio;
 
     // Set point position
     float depth_hint = 0.0025 * eye; // favor left eye image when depth's match

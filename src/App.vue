@@ -70,8 +70,8 @@ export default {
         //plane.position.y = -5.0; 
         //let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_dasp_2560x1200_0.33_nodenoise.exr', 'DASP', () => {
         //let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_cdep_2560x1200_0.33_nodenoise.exr', 'CDEP', () => {
-        //let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_dasp_2560x1200_1.5_denoise.exr', 'DASP', () => {
-        let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_cdep_2560x1200_1.5_denoise.exr', 'CDEP', () => {
+        let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_dasp_2560x1200_1.5_denoise.exr', 'DASP', () => {
+        //let ods_image = new OdsImage(this.gl, BASE_URL, BASE_URL + 'data/office_cdep_2560x1200_1.5_denoise.exr', 'CDEP', () => {
             console.log(ods_image.exr);
             console.log(ods_image.exr_metadata);
 

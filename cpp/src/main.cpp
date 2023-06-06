@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <numeric>
 #include <map>
 #include <string>
 #include <vector>
@@ -85,6 +86,7 @@ void onMouseMove(GLFWwindow* window, double x_pos, double y_pos);
 void onKeyboardInput(GLFWwindow* window, int key, int scancode, int action, int mods);
 void initializeOdsTextures(const char *file_prefix, float *camera_position);
 void initializeOdsRenderTargets();
+uint32_t mortonZIndex(uint16_t x, uint16_t y);
 void createOdsPointData();
 void createQuad();
 void createSphere(int stacks, int slices);
@@ -288,6 +290,8 @@ void init()
 
     // Synthesize ODS image
     //synthesizeOdsImage(app.synthesized_position);
+
+    printf("Num Points: %d\n", app.num_va_points);
 }
 
 void render()
@@ -554,8 +558,8 @@ void initializeOdsTextures(const char *file_prefix, float *camera_position)
     GLuint tex_color;
     glGenTextures(1, &tex_color);
     glBindTexture(GL_TEXTURE_2D, tex_color);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, app.ods_width, app.ods_height, 0, GL_RGBA,
@@ -565,8 +569,8 @@ void initializeOdsTextures(const char *file_prefix, float *camera_position)
     GLuint tex_depth;
     glGenTextures(1, &tex_depth);
     glBindTexture(GL_TEXTURE_2D, tex_depth);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, app.ods_width, app.ods_height, 0, GL_RED,
@@ -635,6 +639,28 @@ void initializeOdsRenderTargets()
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+uint32_t mortonZIndex(uint16_t x, uint16_t y)
+{
+    uint32_t MASKS[4] = {0x55555555, 0x33333333, 0x0F0F0F0F, 0x00FF00FF};
+    uint32_t SHIFTS[4] = {1, 2, 4, 8};
+
+    uint32_t x32 = x;
+    uint32_t y32 = y;
+
+    x32 = (x32 | (x32 << SHIFTS[3])) & MASKS[3];
+    x32 = (x32 | (x32 << SHIFTS[2])) & MASKS[2];
+    x32 = (x32 | (x32 << SHIFTS[1])) & MASKS[1];
+    x32 = (x32 | (x32 << SHIFTS[0])) & MASKS[0];
+
+    y32 = (y32 | (y32 << SHIFTS[3])) & MASKS[3];
+    y32 = (y32 | (y32 << SHIFTS[2])) & MASKS[2];
+    y32 = (y32 | (y32 << SHIFTS[1])) & MASKS[1];
+    y32 = (y32 | (y32 << SHIFTS[0])) & MASKS[0];
+
+    uint32_t morton_idx = x32 | (y32 << 1);
+    return morton_idx;
+}
+
 void createOdsPointData()
 {
     uint32_t i, j;
@@ -646,13 +672,16 @@ void createOdsPointData()
     app.num_va_points = size;
 
     // Create arrays for vertex positions and texture coordinates
+    // Use randomized blocks (size = 128) of morton z-order points
     GLfloat *vertices = new GLfloat[2 * size];
     GLfloat *texcoords = new GLfloat[2 * size];
     for (j = 0; j < app.ods_height; j++)
     {
         for (i = 0; i < app.ods_width; i++)
         {
-            uint32_t idx = j * app.ods_width + i;
+            uint32_t idx = mortonZIndex(i, j);
+            if (idx >= app.ods_width * app.ods_height) printf("Morton Idx %u, %u (out of range): %u\n", i, j, idx);
+            //uint32_t idx = j * app.ods_width + i;
             double norm_x = (i + 0.5) / (double)app.ods_width;
             double norm_y = (j + 0.5) / (double)app.ods_height;
             double azimuth = 2.0 * M_PI * (1.0 - norm_x);

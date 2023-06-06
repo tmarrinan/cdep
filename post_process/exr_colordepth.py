@@ -8,8 +8,8 @@ from PIL import Image
 
 
 def main():
-    output_name = 'ods_cdep_4k_'
-    exr = OpenEXR.InputFile('../public/data/office_cdep_4096x2048_1.5_denoise.exr')
+    output_name = 'ods_cdep_6k_'
+    exr = OpenEXR.InputFile('../public/data/office_cdep_6144x3072_1.5_denoise.exr')
     #exr = OpenEXR.InputFile('../public/data/office_dasp_2560x1200_1.5_denoise.exr')
     
     header = exr.header()

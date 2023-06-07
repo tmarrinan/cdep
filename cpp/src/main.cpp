@@ -2,6 +2,7 @@
 #include <cmath>
 #include <algorithm>
 #include <numeric>
+#include <random>
 #include <map>
 #include <string>
 #include <vector>
@@ -21,6 +22,7 @@
 #endif
 
 //#define FORMAT_DASP
+#define FORMAT_SOS
 #define WINDOW_TITLE "CDEP Demo"
 
 
@@ -73,6 +75,7 @@ typedef struct AppData {
     double camera_yaw;
     double camera_pitch;
     glm::vec3 synthesized_position;
+    int fc;
 } AppData;
 
 AppData app;
@@ -87,6 +90,7 @@ void onKeyboardInput(GLFWwindow* window, int key, int scancode, int action, int 
 void initializeOdsTextures(const char *file_prefix, float *camera_position);
 void initializeOdsRenderTargets();
 uint32_t mortonZIndex(uint16_t x, uint16_t y);
+void blockShuffle(GLfloat* vertices, GLfloat* texcoords, uint32_t size, uint32_t block_size);
 void createOdsPointData();
 void createQuad();
 void createSphere(int stacks, int slices);
@@ -144,6 +148,11 @@ int main(int argc, char **argv)
     uint32_t frame_count = 0;
     double fps_start = glfwGetTime();
     double start_time = fps_start;
+    double t = 0.0;
+    app.fc = 0;
+    int num_frames = 8;
+    int fps_counter = 0;
+    double avg_frame_time_list[10];
     while (!glfwWindowShouldClose(app.window))
     {
         // Print frame rate
@@ -154,12 +163,30 @@ int main(int argc, char **argv)
             printf("Avg Render Time: %.3lf ms\n", avg_frame_time);
             frame_count = 0;
             fps_start = now;
+            if (fps_counter < 10)
+            {
+                avg_frame_time_list[fps_counter] = avg_frame_time;
+                fps_counter++;
+            }
+            else
+            {
+                double final_avg_frame_time = 0.0;
+                for (int i = 0; i < 10; i++)
+                {
+                    final_avg_frame_time += avg_frame_time_list[i];
+                }
+                printf("FINAL AVG FRAME TIME: %.3lf\n", final_avg_frame_time / 10.0);
+            }
         }
 
         // Animation - synthesize view
-        double t = now - start_time;
+        t = now - start_time;
+        //t += 4.0 * M_PI / num_frames;
         app.synthesized_position = glm::vec3(0.0, 1.70, 0.725) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
         synthesizeOdsImage(app.synthesized_position);
+
+        app.fc++;
+        //if (app.fc >= num_frames) exit(EXIT_SUCCESS);
 
         // Render next frame
         render();
@@ -214,33 +241,38 @@ void init()
     app.glsl_program["nolight"] = nolight;
 
     // Initialize ODS textures
-#ifdef FORMAT_DASP
+#if defined(FORMAT_DASP)
     // DASP
     app.ods_format = OdsFormat::DASP;
-    app.dasp_ipd = 0.55;
+    app.ods_num_views = 1;
+    app.ods_max_views = 1;
+    app.dasp_ipd = 0.7;
     app.dasp_focal_dist = 1.95;
     double near = 0.1;
     double far = 50.0;
-    float cam_position[3] = {0.0, 1.778, 0.75};
-    initializeOdsTextures("./resrc/images/ods_dasp_left", cam_position);
-    initializeOdsTextures("./resrc/images/ods_dasp_right", cam_position);
+    float cam_position[3] = {0.0, 1.7, 0.725};
+    initializeOdsTextures("./resrc/images/ods_dasp_4k_left", cam_position);
+    initializeOdsTextures("./resrc/images/ods_dasp_4k_right", cam_position);
+#elif defined(FORMAT_SOS)
+    // SOS
+    app.ods_format = OdsFormat::DASP;
+    app.ods_num_views = 2;
+    app.ods_max_views = 2;
+    app.dasp_ipd = 0.7;
+    app.dasp_focal_dist = 1.95;
+    double near = 0.1;
+    double far = 50.0;
+    float cam_position1[3] = {0.0, 1.55, 0.725};
+    float cam_position2[3] = {0.0, 1.85, 0.725};
+    initializeOdsTextures("./resrc/images/ods_sos1_4k_left", cam_position1);
+    initializeOdsTextures("./resrc/images/ods_sos1_4k_right", cam_position1);
+    initializeOdsTextures("./resrc/images/ods_sos2_4k_left", cam_position2);
+    initializeOdsTextures("./resrc/images/ods_sos2_4k_right", cam_position2);
 #else
     // C-DEP
     app.ods_format = OdsFormat::CDEP;
-    /*
-    app.ods_num_views = 3;
-    app.ods_max_views = 3;
-    double near = 0.1;
-    double far = 50.0;
-    float cam_position1[3] = {-0.080, 1.820, 0.750};
-    float cam_position2[3] = {-0.275, 1.620, 0.600};
-    float cam_position3[3] = { 0.275, 1.700, 0.850};
-    initializeOdsTextures("./resrc/images/ods_cdep_camera_1", cam_position1);
-    initializeOdsTextures("./resrc/images/ods_cdep_camera_2", cam_position2);
-    initializeOdsTextures("./resrc/images/ods_cdep_camera_3", cam_position3);
-    */
     app.ods_num_views = 8;
-    app.ods_max_views = 4;
+    app.ods_max_views = 3;
     double near = 0.1;
     double far = 50.0;
     float cam_position1[3] = {-0.35, 1.85, 0.55};
@@ -349,14 +381,13 @@ void synthesizeOdsImage(glm::vec3& camera_position)
     {
         glUseProgram(app.glsl_program["DASP"].program);
 
-        glm::vec3 relative_cam_pos = camera_position - app.camera_positions[0];
-
         glUniform1f(app.glsl_program["DASP"].uniforms["img_ipd"], app.dasp_ipd);
         glUniform1f(app.glsl_program["DASP"].uniforms["img_focal_dist"], app.dasp_focal_dist);
         glUniform1f(app.glsl_program["DASP"].uniforms["camera_ipd"], 0.065);
         glUniform1f(app.glsl_program["DASP"].uniforms["camera_focal_dist"], 1.95);
-        glUniform3fv(app.glsl_program["DASP"].uniforms["camera_position"], 1, glm::value_ptr(relative_cam_pos));
         glUniformMatrix4fv(app.glsl_program["DASP"].uniforms["ortho_projection"], 1, GL_FALSE, glm::value_ptr(app.ods_projection));
+
+        int num_views = std::min(app.ods_num_views, app.ods_max_views);
 
         // Draw right (bottom half of image) and left (top half of image) views
         for (i = 0; i < 2; i++)
@@ -364,31 +395,38 @@ void synthesizeOdsImage(glm::vec3& camera_position)
             glViewport(0, i * app.ods_height, app.ods_width, app.ods_height);
             glUniform1f(app.glsl_program["DASP"].uniforms["camera_eye"], 2.0 * (i - 0.5));
 
-            // Left eye
-            glUniform1f(app.glsl_program["DASP"].uniforms["eye"], 1.0);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, app.color_textures[0]);
-            glUniform1i(app.glsl_program["DASP"].uniforms["image"], 0);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, app.depth_textures[0]);
-            glUniform1i(app.glsl_program["DASP"].uniforms["depths"], 1);
+            for (j = 0; j < num_views; j++)
+            {
+                int dasp_idx = 2 * j;
+                glm::vec3 relative_cam_pos = camera_position - app.camera_positions[dasp_idx];
+                glUniform3fv(app.glsl_program["DASP"].uniforms["camera_position"], 1, glm::value_ptr(relative_cam_pos));
 
-            glBindVertexArray(app.ods_vertex_array);
-            glDrawArrays(GL_POINTS, 0, app.num_va_points);
-            glBindVertexArray(0);
+                // Left eye
+                glUniform1f(app.glsl_program["DASP"].uniforms["eye"], 1.0);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, app.color_textures[dasp_idx]);
+                glUniform1i(app.glsl_program["DASP"].uniforms["image"], 0);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, app.depth_textures[dasp_idx]);
+                glUniform1i(app.glsl_program["DASP"].uniforms["depths"], 1);
 
-            // Right eye
-            glUniform1f(app.glsl_program["DASP"].uniforms["eye"], -1.0);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, app.color_textures[1]);
-            glUniform1i(app.glsl_program["DASP"].uniforms["image"], 0);
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, app.depth_textures[1]);
-            glUniform1i(app.glsl_program["DASP"].uniforms["depths"], 1);
+                glBindVertexArray(app.ods_vertex_array);
+                glDrawArrays(GL_POINTS, 0, app.num_va_points);
+                glBindVertexArray(0);
 
-            glBindVertexArray(app.ods_vertex_array);
-            glDrawArrays(GL_POINTS, 0, app.num_va_points);
-            glBindVertexArray(0);
+                // Right eye
+                glUniform1f(app.glsl_program["DASP"].uniforms["eye"], -1.0);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, app.color_textures[dasp_idx + 1]);
+                glUniform1i(app.glsl_program["DASP"].uniforms["image"], 0);
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_2D, app.depth_textures[dasp_idx + 1]);
+                glUniform1i(app.glsl_program["DASP"].uniforms["depths"], 1);
+
+                glBindVertexArray(app.ods_vertex_array);
+                glDrawArrays(GL_POINTS, 0, app.num_va_points);
+                glBindVertexArray(0);
+            }
         }
     }
     // DEP / C-DEP
@@ -396,8 +434,15 @@ void synthesizeOdsImage(glm::vec3& camera_position)
     {
         glUseProgram(app.glsl_program["DEP"].program);
 
+        glm::mat4 view_mat1 = glm::rotate(glm::mat4(1.0), (float)(-app.camera_pitch), glm::vec3(1.0, 0.0, 0.0));
+        glm::mat4 view_mat2 = glm::rotate(glm::mat4(1.0), (float)(-app.camera_yaw), glm::vec3(0.0, 1.0, 0.0));
+        glm::vec4 xr_view_dir = view_mat2 * view_mat1 * glm::vec4(0.0, 0.0, -1.0, 1.0);
+
         glUniform1f(app.glsl_program["DEP"].uniforms["camera_ipd"], 0.065);
         glUniform1f(app.glsl_program["DEP"].uniforms["camera_focal_dist"], 1.95);
+        glUniform1f(app.glsl_program["DEP"].uniforms["xr_fovy"], 75.0 * M_PI / 180.0);
+        glUniform1f(app.glsl_program["DEP"].uniforms["xr_aspect"], (float)app.window_width / (float)app.window_height);
+        glUniform3fv(app.glsl_program["DEP"].uniforms["xr_view_dir"], 1, glm::value_ptr(xr_view_dir));
         glUniformMatrix4fv(app.glsl_program["DEP"].uniforms["ortho_projection"], 1, GL_FALSE, glm::value_ptr(app.ods_projection));
 
         // Get nearest N bounding images
@@ -437,13 +482,17 @@ void synthesizeOdsImage(glm::vec3& camera_position)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     /*
+    int flip = 1;
     uint8_t *pixels = new uint8_t[app.ods_width * app.ods_height * 8];
     glBindTexture(GL_TEXTURE_2D, app.render_texture_color);
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     glBindTexture(GL_TEXTURE_2D, 0);
-    iioWriteImagePng("novel_ods_cdep_cpp.png", app.ods_width, app.ods_height * 2, 4, pixels);
+    char outname[96];
+    //snprintf(outname, 96, "synthesized_views/novel_ods_dasp_%02d.png", app.fc);
+    snprintf(outname, 96, "synthesized_views/novel_ods_sos_%02d.png", app.fc);
+    //snprintf(outname, 96, "synthesized_views/novel_ods_cdep_%d.%d_%02d.png", app.ods_num_views, app.ods_max_views, app.fc);
+    iioWriteImagePng(outname, app.ods_width, app.ods_height * 2, 4, flip, pixels);
     delete[] pixels;
-    exit(0);
     */
 }
 
@@ -661,6 +710,35 @@ uint32_t mortonZIndex(uint16_t x, uint16_t y)
     return morton_idx;
 }
 
+void blockShuffle(GLfloat* vertices, GLfloat* texcoords, uint32_t size, uint32_t block_size)
+{
+    int i, b;
+    std::random_device rd;
+    std::mt19937 g(rd());
+    uint32_t num_blocks = size / block_size;
+    for (i = 0; i < num_blocks - 1; i++) 
+    {
+        int j = i + (g() % (num_blocks - i));
+        int bi = block_size * i;
+        int bj = block_size * j;
+        for (b = 0; b < block_size; b++)
+        {
+            GLfloat temp_x = vertices[2 * (bj + b)];
+            GLfloat temp_y = vertices[2 * (bj + b) + 1];
+            vertices[2 * (bj + b)] = vertices[2 * (bi + b)];
+            vertices[2 * (bj + b) + 1] = vertices[2 * (bi + b) + 1];
+            vertices[2 * (bi + b)] = temp_x;
+            vertices[2 * (bi + b) + 1] = temp_y;
+            GLfloat temp_u = texcoords[2 * (bj + b)];
+            GLfloat temp_v = texcoords[2 * (bj + b) + 1];
+            texcoords[2 * (bj + b)] = texcoords[2 * (bi + b)];
+            texcoords[2 * (bj + b) + 1] = texcoords[2 * (bi + b) + 1];
+            texcoords[2 * (bi + b)] = temp_u;
+            texcoords[2 * (bi + b) + 1] = temp_v;
+        }
+    }
+}
+
 void createOdsPointData()
 {
     uint32_t i, j;
@@ -673,15 +751,30 @@ void createOdsPointData()
 
     // Create arrays for vertex positions and texture coordinates
     // Use randomized blocks (size = 128) of morton z-order points
+    uint32_t block_size = 512;
+    uint32_t blocks_x = app.ods_width / block_size;
+    uint32_t blocks_y = app.ods_height / block_size;
+    uint32_t *block_order = new uint32_t[blocks_x * blocks_y];
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::iota(block_order, block_order + (blocks_x * blocks_y), 0);
+    std::shuffle(block_order, block_order + (blocks_x * blocks_y), g);
     GLfloat *vertices = new GLfloat[2 * size];
     GLfloat *texcoords = new GLfloat[2 * size];
     for (j = 0; j < app.ods_height; j++)
     {
         for (i = 0; i < app.ods_width; i++)
         {
-            uint32_t idx = mortonZIndex(i, j);
-            if (idx >= app.ods_width * app.ods_height) printf("Morton Idx %u, %u (out of range): %u\n", i, j, idx);
+            uint16_t bx = i % block_size;
+            uint16_t by = j % block_size;
+            uint32_t bidx = mortonZIndex(bx, by);
+            uint32_t block = blocks_x * (j / block_size) + (i / block_size);
+            uint32_t idx = (block_size * block_size) * block + bidx;
+            //uint32_t idx = (block_size * block_size) * block_order[block] + bidx;
+
+            //uint32_t idx = mortonZIndex(i, j);
             //uint32_t idx = j * app.ods_width + i;
+            
             double norm_x = (i + 0.5) / (double)app.ods_width;
             double norm_y = (j + 0.5) / (double)app.ods_height;
             double azimuth = 2.0 * M_PI * (1.0 - norm_x);
@@ -692,6 +785,7 @@ void createOdsPointData()
             texcoords[2 * idx + 1] = norm_y;
         }
     }
+    blockShuffle(vertices, texcoords, size, 128);
 
     // Create buffer to store vertex positions
     GLuint vertex_position_buffer;
@@ -844,6 +938,36 @@ void createSphere(int stacks, int slices)
 
 void determineViews(glm::vec3& camera_position, int num_views, std::vector<int>& view_indices)
 {
+    // Start by adding bounding corners (in num_views >= 2)
+    if (num_views >= 2)
+    {
+        view_indices.push_back(0);
+        view_indices.push_back(1);
+    }
+
+    // Continue adding closest views
+    int i, j;
+    for (j = view_indices.size(); j < num_views; j++)
+    {
+        float closest_dist2 = 9.9e12;
+        int closest_index = -1;
+        for (i = 0; i < app.ods_num_views; i++)
+        {
+            if (std::find(view_indices.begin(), view_indices.end(), i) != view_indices.end())
+            {
+                continue;
+            }
+            float dist2 = glm::distance2(camera_position, app.camera_positions[i]);
+            if (dist2 < closest_dist2)
+            {
+                closest_dist2 = dist2;
+                closest_index = i;
+            }
+        }
+        view_indices.push_back(closest_index);
+    }
+
+    /*
     // Start by finding the closest view
     int i, j, closest_sign_x, closest_sign_y, closest_sign_z;
     float closest_dist2 = 9.9e12;
@@ -910,6 +1034,7 @@ void determineViews(glm::vec3& camera_position, int num_views, std::vector<int>&
             diff_axis = (diff_axis + 1) % 4;
         }
     }
+    */
 
     // Sort based on distance
     for (j = 0; j < view_indices.size() - 1; j++)

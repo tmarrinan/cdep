@@ -68,13 +68,15 @@ void iioFreeRvlDepthImage(float *image)
     free(image);
 }
 
-int iioWriteImageJpeg(const char *filename, int width, int height, int channels, int quality, uint8_t *pixels)
+int iioWriteImageJpeg(const char *filename, int width, int height, int channels, int flip, int quality, uint8_t *pixels)
 {
+    stbi_flip_vertically_on_write(flip);
     return stbi_write_jpg(filename, width, height, channels, pixels, quality);
 }
 
-int iioWriteImagePng(const char *filename, int width, int height, int channels, uint8_t *pixels)
+int iioWriteImagePng(const char *filename, int width, int height, int channels, int flip, uint8_t *pixels)
 {
+    stbi_flip_vertically_on_write(flip);
     return stbi_write_png(filename, width, height, channels, pixels, width * channels);
 }
 

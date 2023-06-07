@@ -10,6 +10,9 @@ uniform vec3 camera_position;
 uniform float camera_ipd;
 uniform float camera_focal_dist;
 uniform float camera_eye; // left: +1.0, right: -1.0
+uniform float xr_fovy;
+uniform float xr_aspect;
+uniform vec3 xr_view_dir;
 uniform mat4 ortho_projection;
 uniform sampler2D depths;
 
@@ -58,7 +61,16 @@ void main() {
     float size_ratio = vertex_depth / camera_distance;
     float size_scale = 1.1 + (0.4 - (0.16 * min(camera_distance, 2.5))); // scale ranges from 1.1 to 1.5
     gl_PointSize = size_scale * size_ratio;
-
+/*
+    // XR viewport only
+    float diag_aspect = sqrt(xr_aspect * xr_aspect + 1.0);
+    float vertical_fov = 0.5 * xr_fovy + 0.005;
+    //float horizontal_fov = atan(tan(vertical_fov) * xr_aspect);
+    float diagonal_fov = atan(tan(vertical_fov) * diag_aspect);
+    vec3 point_dir = normalize(img_sphere_pt.yzx);
+    // discard point (move outside view volume) if angle between point direction and view diretion > diagonal FOV
+    projected_azimuth -= float(dot(point_dir, xr_view_dir) < cos(diagonal_fov)) * 10.0;
+*/
     // Set point position
     float depth_hint = 0.015 * img_index; // favor image with lower index when depth's match (index should be based on dist)
     gl_Position = ortho_projection * vec4(projected_azimuth, projected_inclination, -camera_distance - depth_hint, 1.0);

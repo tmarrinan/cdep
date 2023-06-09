@@ -41,14 +41,16 @@ typedef struct AppData {
     // GLSL programs
     std::map<std::string,GlslProgram> glsl_program;
     // Vertex array
-    GLuint quad_vertex_array;
+    GLuint cube_vertex_array;
     GLuint sphere_vertex_array;
     GLuint ods_vertex_array;
     GLuint num_va_points;
+    GLushort num_cube_triangles;
     GLushort num_sphere_triangles;
     // Vertex attribs
     GLuint vertex_position_attrib;
     GLuint vertex_texcoord_attrib;
+    GLuint vertex_normal_attrib;
     // DASP / DEP images
     int ods_width;
     int ods_height;
@@ -69,11 +71,16 @@ typedef struct AppData {
     // App view
     glm::mat4 modelview;
     glm::mat4 projection;
+    glm::mat4 cube_model_matrix;
+    GLuint cube_texture;
     bool view_pan;
     double mouse_x;
     double mouse_y;
     double camera_yaw;
     double camera_pitch;
+    float aperture;
+    float focal_length;
+    float plane_in_focus;
     glm::vec3 synthesized_position;
     int fc;
 } AppData;
@@ -92,7 +99,7 @@ void initializeOdsRenderTargets();
 uint32_t mortonZIndex(uint16_t x, uint16_t y);
 void blockShuffle(GLfloat* vertices, GLfloat* texcoords, uint32_t size, uint32_t block_size);
 void createOdsPointData();
-void createQuad();
+void createCube();
 void createSphere(int stacks, int slices);
 void determineViews(glm::vec3& camera_position, int num_views, std::vector<int>& view_indices);
 
@@ -182,8 +189,14 @@ int main(int argc, char **argv)
         // Animation - synthesize view
         t = now - start_time;
         //t += 4.0 * M_PI / num_frames;
-        app.synthesized_position = glm::vec3(0.0, 1.70, 0.725) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
+        app.synthesized_position = glm::vec3(0.0, 1.70, 0.725);
+        //app.synthesized_position = glm::vec3(0.0, 1.70, 0.725) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
+        app.plane_in_focus = 2.75 + 1.25 * cos(1.0 * t);
+        //app.aperture = 0.025 + 0.015 * cos(1.0 * t);
         //app.synthesized_position = glm::vec3(0.0, 1.70, 0.0) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
+        app.cube_model_matrix = glm::translate(glm::mat4(1.0), glm::vec3(-0.2, -0.6 + 0.65 * cos(0.5 * t), -1.05)) *
+                                glm::scale(glm::mat4(1.0), glm::vec3(0.125, 0.125, 0.125));
+        
         synthesizeOdsImage(app.synthesized_position);
 
         //printf("Synthesized Position: (%.4f, %.4f, %.4f)\n", app.synthesized_position[0], app.synthesized_position[1],
@@ -216,6 +229,7 @@ void init()
     // Initialize vertex attributes
     app.vertex_position_attrib = 0;
     app.vertex_texcoord_attrib = 1;
+    app.vertex_normal_attrib = 2;
 
     // Load DASP shader
     GlslProgram dasp;
@@ -243,6 +257,16 @@ void init()
     glsl::linkShaderProgram(depth_ods.program);
     glsl::getShaderProgramUniforms(depth_ods.program, depth_ods.uniforms);
     app.glsl_program["depth_ods"] = depth_ods;
+
+    // Load Phong lighting shader
+    GlslProgram phong;
+    phong.program = glsl::createShaderProgram("./resrc/shaders/phong.vert", "./resrc/shaders/phong.frag");
+    glBindAttribLocation(phong.program, app.vertex_position_attrib, "vertex_position");
+    glBindAttribLocation(phong.program, app.vertex_texcoord_attrib, "vertex_texcoord");
+    glBindAttribLocation(phong.program, app.vertex_normal_attrib, "vertex_normal");
+    glsl::linkShaderProgram(phong.program);
+    glsl::getShaderProgramUniforms(phong.program, phong.uniforms);
+    app.glsl_program["phong"] = phong;
 
     // Initialize ODS textures
 #if defined(FORMAT_DASP)
@@ -329,7 +353,7 @@ void init()
     createOdsPointData();
 
     // Create quad for rendering
-    createQuad();
+    createCube();
 
     // Create sphere for rendering
     createSphere(18, 36);
@@ -344,13 +368,29 @@ void init()
     app.view_pan = false;
     app.camera_yaw = 0.0;
     app.camera_pitch = 0.0;
+    app.aperture = 0.027;
+    app.focal_length = 0.05;
+    app.plane_in_focus = 2.15;
 
     app.synthesized_position = glm::vec3(0.15, 1.77, 0.77);
 
     // Synthesize ODS image
     //synthesizeOdsImage(app.synthesized_position);
 
-    printf("Num Points: %d\n", app.num_va_points);
+
+    app.cube_model_matrix = glm::translate(glm::mat4(1.0), glm::vec3(1.75, -0.2, -2.15)) *
+                            glm::scale(glm::mat4(1.0), glm::vec3(0.15, 0.15, 0.15));
+    // Load cube texture
+    int w, h;
+    int channels = 4;
+    uint8_t *cube_px = iioReadImage("resrc/images/cube.png", &w, &h, &channels);
+    glGenTextures(1, &(app.cube_texture));
+    glBindTexture(GL_TEXTURE_2D, app.cube_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, cube_px);
 }
 
 void render()
@@ -359,6 +399,8 @@ void render()
     glViewport(0, 0, app.window_width, app.window_height);
 
     // Delete previous frame (reset both framebuffer and z-buffer)
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glClearColor(0.1, 0.1, 0.4, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
@@ -373,7 +415,9 @@ void render()
     glUniformMatrix4fv(app.glsl_program["depth_ods"].uniforms["projection"], 1, GL_FALSE, glm::value_ptr(app.projection));
     glUniform2fv(app.glsl_program["depth_ods"].uniforms["texture_scale"], 1, glm::value_ptr(stereo_scale));
     glUniform2fv(app.glsl_program["depth_ods"].uniforms["texture_offset"], 1, glm::value_ptr(stereo_offset));
-
+    glUniform1f(app.glsl_program["depth_ods"].uniforms["aperture"], app.aperture);
+    glUniform1f(app.glsl_program["depth_ods"].uniforms["focal_length"], app.focal_length);
+    glUniform1f(app.glsl_program["depth_ods"].uniforms["plane_in_focus"], app.plane_in_focus);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, app.render_texture_color);
@@ -384,6 +428,21 @@ void render()
 
     glBindVertexArray(app.sphere_vertex_array);
     glDrawElements(GL_TRIANGLES, app.num_sphere_triangles, GL_UNSIGNED_SHORT, 0);
+    glBindVertexArray(0);
+
+    // Add cube to scene
+    glUseProgram(app.glsl_program["phong"].program);
+
+    glUniformMatrix4fv(app.glsl_program["phong"].uniforms["model"], 1, GL_FALSE, glm::value_ptr(app.cube_model_matrix));
+    glUniformMatrix4fv(app.glsl_program["phong"].uniforms["view"], 1, GL_FALSE, glm::value_ptr(app.modelview));
+    glUniformMatrix4fv(app.glsl_program["phong"].uniforms["projection"], 1, GL_FALSE, glm::value_ptr(app.projection));
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, app.cube_texture);
+    glUniform1i(app.glsl_program["phong"].uniforms["image"], 0);
+
+    glBindVertexArray(app.cube_vertex_array);
+    glDrawElements(GL_TRIANGLES, app.num_cube_triangles, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
 
     glActiveTexture(GL_TEXTURE0);
@@ -403,8 +462,12 @@ void synthesizeOdsImage(glm::vec3& camera_position)
     glBindFramebuffer(GL_FRAMEBUFFER, app.render_framebuffer);
 
     // Delete previous frame (reset both framebuffer and z-buffer)
-    glClearColor(0.0, 0.0, 0.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_BLEND);
+    GLfloat color_bg[4] = {0.0, 0.0, 0.0, 1.0};
+    GLfloat depth_bg[1] = {1000.0};
+    glClearBufferfv(GL_COLOR, 0, color_bg);
+    glClearBufferfv(GL_COLOR, 1, depth_bg);
+    glClear(GL_DEPTH_BUFFER_BIT);
 
     // DASP / SOS
     if (app.ods_format == OdsFormat::DASP)
@@ -840,35 +903,148 @@ void createOdsPointData()
     delete[] texcoords;
 }
 
-void createQuad()
+void createCube()
 {
     // Create a new vertex array object
-    glGenVertexArrays(1, &(app.quad_vertex_array));
-    glBindVertexArray(app.quad_vertex_array);
+    glGenVertexArrays(1, &(app.cube_vertex_array));
+    glBindVertexArray(app.cube_vertex_array);
 
     // Create arrays for vertex positions and texture coordinates
-    GLfloat vertices[12] = {
-        -1.0, -1.0, 0.0,
-         1.0, -1.0, 0.0,
-         1.0,  1.0, 0.0,
-        -1.0,  1.0, 0.0
-    };
-    GLfloat texcoords[8] = {
-        0.0, 0.0,
-        1.0, 0.0,
-        1.0, 1.0,
-        0.0, 1.0
-    };
-    GLushort indices[6] = {
-        0, 1, 2,
-        0, 2, 3
+    GLfloat vertices[72], texcoords[48], normals[72];
+    for (int i = 0; i < 6; i++) // left, right, bottom, top, front, back
+    {
+        float norm_x = (i == 0) ? -1.0 : (i == 1) ? 1.0 : 0.0;
+        float norm_y = (i == 2) ? -1.0 : (i == 3) ? 1.0 : 0.0;
+        float norm_z = (i == 4) ? -1.0 : (i == 5) ? 1.0 : 0.0;
+
+        if (i == 0)
+        {
+            vertices[12 * i + 0] = -1.0;
+            vertices[12 * i + 1] = -1.0;
+            vertices[12 * i + 2] =  1.0;
+            vertices[12 * i + 3] = -1.0;
+            vertices[12 * i + 4] = -1.0;
+            vertices[12 * i + 5] = -1.0;
+            vertices[12 * i + 6] = -1.0;
+            vertices[12 * i + 7] =  1.0;
+            vertices[12 * i + 8] = -1.0;
+            vertices[12 * i + 9] = -1.0;
+            vertices[12 * i + 10] = 1.0;
+            vertices[12 * i + 11] = 1.0;
+        }
+        else if (i == 1)
+        {
+            vertices[12 * i + 0] =   1.0;
+            vertices[12 * i + 1] =  -1.0;
+            vertices[12 * i + 2] =  -1.0;
+            vertices[12 * i + 3] =   1.0;
+            vertices[12 * i + 4] =  -1.0;
+            vertices[12 * i + 5] =   1.0;
+            vertices[12 * i + 6] =   1.0;
+            vertices[12 * i + 7] =   1.0;
+            vertices[12 * i + 8] =   1.0;
+            vertices[12 * i + 9] =   1.0;
+            vertices[12 * i + 10] =  1.0;
+            vertices[12 * i + 11] = -1.0;
+        }
+        else if (i == 2)
+        {
+            vertices[12 * i + 0] =  -1.0;
+            vertices[12 * i + 1] =  -1.0;
+            vertices[12 * i + 2] =   1.0;
+            vertices[12 * i + 3] =   1.0;
+            vertices[12 * i + 4] =  -1.0;
+            vertices[12 * i + 5] =   1.0;
+            vertices[12 * i + 6] =   1.0;
+            vertices[12 * i + 7] =  -1.0;
+            vertices[12 * i + 8] =  -1.0;
+            vertices[12 * i + 9] =  -1.0;
+            vertices[12 * i + 10] = -1.0;
+            vertices[12 * i + 11] = -1.0;
+        }
+        else if (i == 3)
+        {
+            vertices[12 * i + 0] =  -1.0;
+            vertices[12 * i + 1] =   1.0;
+            vertices[12 * i + 2] =  -1.0;
+            vertices[12 * i + 3] =   1.0;
+            vertices[12 * i + 4] =   1.0;
+            vertices[12 * i + 5] =  -1.0;
+            vertices[12 * i + 6] =   1.0;
+            vertices[12 * i + 7] =   1.0;
+            vertices[12 * i + 8] =   1.0;
+            vertices[12 * i + 9] =  -1.0;
+            vertices[12 * i + 10] =  1.0;
+            vertices[12 * i + 11] =  1.0;
+        }
+        else if (i == 4)
+        {
+            vertices[12 * i + 0] =  -1.0;
+            vertices[12 * i + 1] =  -1.0;
+            vertices[12 * i + 2] =  -1.0;
+            vertices[12 * i + 3] =   1.0;
+            vertices[12 * i + 4] =  -1.0;
+            vertices[12 * i + 5] =  -1.0;
+            vertices[12 * i + 6] =   1.0;
+            vertices[12 * i + 7] =   1.0;
+            vertices[12 * i + 8] =  -1.0;
+            vertices[12 * i + 9] =  -1.0;
+            vertices[12 * i + 10] =  1.0;
+            vertices[12 * i + 11] = -1.0;
+        }
+        else
+        {
+            vertices[12 * i + 0] =   1.0;
+            vertices[12 * i + 1] =  -1.0;
+            vertices[12 * i + 2] =   1.0;
+            vertices[12 * i + 3] =  -1.0;
+            vertices[12 * i + 4] =  -1.0;
+            vertices[12 * i + 5] =   1.0;
+            vertices[12 * i + 6] =  -1.0;
+            vertices[12 * i + 7] =   1.0;
+            vertices[12 * i + 8] =   1.0;
+            vertices[12 * i + 9] =   1.0;
+            vertices[12 * i + 10] =  1.0;
+            vertices[12 * i + 11] =  1.0;
+        }
+
+        texcoords[8 * i + 0] = 0.0;
+        texcoords[8 * i + 1] = 0.0;
+        texcoords[8 * i + 2] = 1.0;
+        texcoords[8 * i + 3] = 0.0;
+        texcoords[8 * i + 4] = 1.0;
+        texcoords[8 * i + 5] = 1.0;
+        texcoords[8 * i + 6] = 0.0;
+        texcoords[8 * i + 7] = 1.0;
+
+        normals[12 * i + 0] = norm_x;
+        normals[12 * i + 1] = norm_y;
+        normals[12 * i + 2] = norm_z;
+        normals[12 * i + 3] = norm_x;
+        normals[12 * i + 4] = norm_y;
+        normals[12 * i + 5] = norm_z;
+        normals[12 * i + 6] = norm_x;
+        normals[12 * i + 7] = norm_y;
+        normals[12 * i + 8] = norm_z;
+        normals[12 * i + 9] = norm_x;
+        normals[12 * i + 10] = norm_y;
+        normals[12 * i + 11] = norm_z;
+    }
+
+    GLushort indices[36] = {
+         0,  1,  2,  0,  2,  3,
+         4,  5,  6,  4,  6,  7,
+         8,  9, 10,  8, 10, 11,
+        12, 13, 14, 12, 14, 15,
+        16, 17, 18, 16, 18, 19,
+        20, 21, 22, 20, 22, 23
     };
 
     // Create buffer to store vertex positions
     GLuint vertex_position_buffer;
     glGenBuffers(1, &vertex_position_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_position_buffer);
-    glBufferData(GL_ARRAY_BUFFER, 12 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 72 * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
     glEnableVertexAttribArray(app.vertex_position_attrib);
     glVertexAttribPointer(app.vertex_position_attrib, 3, GL_FLOAT, false, 0, 0);
 
@@ -876,15 +1052,25 @@ void createQuad()
     GLuint vertex_texcoord_buffer;
     glGenBuffers(1, &vertex_texcoord_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_texcoord_buffer);
-    glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(GLfloat), texcoords, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 48 * sizeof(GLfloat), texcoords, GL_STATIC_DRAW);
     glEnableVertexAttribArray(app.vertex_texcoord_attrib);
     glVertexAttribPointer(app.vertex_texcoord_attrib, 2, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store vertex normals
+    GLuint vertex_normal_buffer;
+    glGenBuffers(1, &vertex_normal_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_normal_buffer);
+    glBufferData(GL_ARRAY_BUFFER, 72 * sizeof(GLfloat), normals, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(app.vertex_normal_attrib);
+    glVertexAttribPointer(app.vertex_normal_attrib, 3, GL_FLOAT, false, 0, 0);
 
     // Create buffer to store indices of each point
     GLuint vertex_index_buffer;
     glGenBuffers(1, &vertex_index_buffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertex_index_buffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLushort), indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 36 * sizeof(GLushort), indices, GL_STATIC_DRAW);
+
+    app.num_cube_triangles = 36;
 
     // Unbind vertex array object and its buffers
     glBindVertexArray(0);

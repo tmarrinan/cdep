@@ -3,9 +3,14 @@
 precision mediump float;
 
 #define M_PI 3.1415926535897932384626433832795
+#define M_e 2.71828182845904523536
 
+in vec3 position;
 in vec2 texcoord;
 
+uniform float aperture;
+uniform float focal_length;
+uniform float plane_in_focus;
 uniform vec2 texture_scale;
 uniform vec2 texture_offset;
 uniform mat4 modelview;
@@ -15,34 +20,42 @@ layout(binding = 1) uniform sampler2D depths;
 
 layout(location = 0) out vec4 FragColor;
 
+
+vec4 gaussianBlur(vec2 uv, float radius);
+
 void main() {
     vec2 uv = texcoord * texture_scale + texture_offset;
 
     // Color
-    // TODO: Gaussian blur with radius = CoC size
     float obj_distance = texture(depths, uv).r;
-    float aperture = 0.0277;      // TODO: make uniform var
-    float focal_length = 0.05; // TODO: make uniform var
-    float plane_in_focus = 2.15; // TODO: make uniform var
     float CoC = abs(aperture * (focal_length * (obj_distance - plane_in_focus)) / (obj_distance * (plane_in_focus - focal_length)));
-    float blur_radius = 2500.0 * CoC; 
-    //FragColor = vec4(blur_radius, blur_radius, blur_radius, 1.0);
-    FragColor = texture(image, uv);
+    float blur_radius = 5000.0 * CoC;
+    FragColor = gaussianBlur(uv, blur_radius);
+    //FragColor = texture2D(image, uv);
 
     // Depth
+    vec3 frag_pos = obj_distance * position;
     float far = gl_DepthRange.far;
     float near = gl_DepthRange.near;
-
-    float azimuth = 2.0 * M_PI * (1.0 - mod(uv.s, 1.0));
-    float inclination = M_PI * (1.0 - mod(uv.t, 1.0));
-    vec3 position = vec3(obj_distance * cos(azimuth) * sin(inclination),
-                         obj_distance * sin(azimuth) * sin(inclination),
-                         obj_distance * cos(inclination));
-
-    vec4 v_clip_coord = projection * modelview * vec4(position.yzx, 1.0);
+    vec4 v_clip_coord = projection * modelview * vec4(frag_pos, 1.0);
     float f_ndc_depth = v_clip_coord.z / v_clip_coord.w;
     float frag_depth = (((far - near) * f_ndc_depth) + far + near) * 0.5;
 
     gl_FragDepth = frag_depth;
-    
+}
+
+vec4 gaussianBlur(vec2 uv, float radius) {
+    vec4 color = vec4(0.0);
+    vec2 resolution = vec2(4096, 2048);
+    vec2 dirs[2] = vec2[](vec2(radius, 0.0), vec2(0.0, radius));
+    for (int i = 0; i < 2; i ++) {
+        vec2 off1 = vec2(1.3846153846) * dirs[i];
+        vec2 off2 = vec2(3.2307692308) * dirs[i];
+        color += texture2D(image, uv) * 0.2270270270;
+        color += texture2D(image, uv + (off1 / resolution)) * 0.3162162162;
+        color += texture2D(image, uv - (off1 / resolution)) * 0.3162162162;
+        color += texture2D(image, uv + (off2 / resolution)) * 0.0702702703;
+        color += texture2D(image, uv - (off2 / resolution)) * 0.0702702703;
+    }
+    return color / 2.0;
 }

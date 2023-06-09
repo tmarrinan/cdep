@@ -22,7 +22,7 @@
 #endif
 
 //#define FORMAT_DASP
-#define FORMAT_SOS
+//#define FORMAT_SOS
 #define WINDOW_TITLE "CDEP Demo"
 
 
@@ -183,7 +183,11 @@ int main(int argc, char **argv)
         t = now - start_time;
         //t += 4.0 * M_PI / num_frames;
         app.synthesized_position = glm::vec3(0.0, 1.70, 0.725) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
+        //app.synthesized_position = glm::vec3(0.0, 1.70, 0.0) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
         synthesizeOdsImage(app.synthesized_position);
+
+        //printf("Synthesized Position: (%.4f, %.4f, %.4f)\n", app.synthesized_position[0], app.synthesized_position[1],
+        //                                                     app.synthesized_position[2]);
 
         app.fc++;
         //if (app.fc >= num_frames) exit(EXIT_SUCCESS);
@@ -231,14 +235,14 @@ void init()
     glsl::getShaderProgramUniforms(dep.program, dep.uniforms);
     app.glsl_program["DEP"] = dep;
 
-    // Load regular (no lighting) shader
-    GlslProgram nolight;
-    nolight.program = glsl::createShaderProgram("./resrc/shaders/nolight.vert", "./resrc/shaders/nolight.frag");
-    glBindAttribLocation(nolight.program, app.vertex_position_attrib, "vertex_position");
-    glBindAttribLocation(nolight.program, app.vertex_texcoord_attrib, "vertex_texcoord");
-    glsl::linkShaderProgram(nolight.program);
-    glsl::getShaderProgramUniforms(nolight.program, nolight.uniforms);
-    app.glsl_program["nolight"] = nolight;
+    // Load depth ODS (no lighting / per-fragment depth) shader
+    GlslProgram depth_ods;
+    depth_ods.program = glsl::createShaderProgram("./resrc/shaders/depth_ods.vert", "./resrc/shaders/depth_ods.frag");
+    glBindAttribLocation(depth_ods.program, app.vertex_position_attrib, "vertex_position");
+    glBindAttribLocation(depth_ods.program, app.vertex_texcoord_attrib, "vertex_texcoord");
+    glsl::linkShaderProgram(depth_ods.program);
+    glsl::getShaderProgramUniforms(depth_ods.program, depth_ods.uniforms);
+    app.glsl_program["depth_ods"] = depth_ods;
 
     // Initialize ODS textures
 #if defined(FORMAT_DASP)
@@ -253,6 +257,9 @@ void init()
     float cam_position[3] = {0.0, 1.7, 0.725};
     initializeOdsTextures("./resrc/images/ods_dasp_4k_left", cam_position);
     initializeOdsTextures("./resrc/images/ods_dasp_4k_right", cam_position);
+    // float cam_position[3] = {0.0, 1.7, 0.0};
+    // initializeOdsTextures("./resrc/images/spheres_ods_dasp_4k_left", cam_position);
+    // initializeOdsTextures("./resrc/images/spheres_ods_dasp_4k_right", cam_position);
 #elif defined(FORMAT_SOS)
     // SOS
     app.ods_format = OdsFormat::DASP;
@@ -268,11 +275,17 @@ void init()
     initializeOdsTextures("./resrc/images/ods_sos1_4k_right", cam_position1);
     initializeOdsTextures("./resrc/images/ods_sos2_4k_left", cam_position2);
     initializeOdsTextures("./resrc/images/ods_sos2_4k_right", cam_position2);
+    // float cam_position1[3] = {0.0, 1.55, 0.0};
+    // float cam_position2[3] = {0.0, 1.85, 0.0};
+    // initializeOdsTextures("./resrc/images/spheres_ods_sos1_4k_left", cam_position1);
+    // initializeOdsTextures("./resrc/images/spheres_ods_sos1_4k_right", cam_position1);
+    // initializeOdsTextures("./resrc/images/spheres_ods_sos2_4k_left", cam_position2);
+    // initializeOdsTextures("./resrc/images/spheres_ods_sos2_4k_right", cam_position2);
 #else
     // C-DEP
     app.ods_format = OdsFormat::CDEP;
     app.ods_num_views = 8;
-    app.ods_max_views = 3;
+    app.ods_max_views = 8;
     double near = 0.1;
     double far = 50.0;
     float cam_position1[3] = {-0.35, 1.85, 0.55};
@@ -291,6 +304,22 @@ void init()
     initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_6", cam_position6);
     initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_7", cam_position7);
     initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_8", cam_position8);
+    // float cam_position1[3] = {-0.35, 1.85, -0.175};
+    // float cam_position2[3] = { 0.35, 1.55,  0.175};
+    // float cam_position3[3] = {-0.10, 1.75,  0.125};
+    // float cam_position4[3] = { 0.25, 1.70, -0.125};
+    // float cam_position5[3] = {-0.30, 1.67,  0.025};
+    // float cam_position6[3] = {-0.20, 1.60, -0.025};
+    // float cam_position7[3] = { 0.15, 1.78, -0.155};
+    // float cam_position8[3] = { 0.05, 1.82,  0.145};
+    // initializeOdsTextures("./resrc/images/spheres_ods_cdep_4k_camera_1", cam_position1);
+    // initializeOdsTextures("./resrc/images/spheres_ods_cdep_4k_camera_2", cam_position2);
+    // initializeOdsTextures("./resrc/images/spheres_ods_cdep_4k_camera_3", cam_position3);
+    // initializeOdsTextures("./resrc/images/spheres_ods_cdep_4k_camera_4", cam_position4);
+    // initializeOdsTextures("./resrc/images/spheres_ods_cdep_4k_camera_5", cam_position5);
+    // initializeOdsTextures("./resrc/images/spheres_ods_cdep_4k_camera_6", cam_position6);
+    // initializeOdsTextures("./resrc/images/spheres_ods_cdep_4k_camera_7", cam_position7);
+    // initializeOdsTextures("./resrc/images/spheres_ods_cdep_4k_camera_8", cam_position8);
 #endif
 
     // Initialize ODS render targets
@@ -309,9 +338,7 @@ void init()
     app.ods_projection = glm::ortho(2.0 * M_PI, 0.0, M_PI, 0.0, near, far);
 
     // Set App view modelview and projection matrices
-    //app.modelview = glm::mat4(1.0);
-    //app.projection = glm::mat4(1.0);
-    app.modelview = glm::scale(glm::mat4(1.0), glm::vec3(49.5, 49.5, 49.5));
+    app.modelview = glm::mat4(1.0);
     app.projection = glm::perspective(75.0 * M_PI / 180.0, (double)app.window_width / (double)app.window_height, 0.1, 100.0);
 
     app.view_pan = false;
@@ -336,28 +363,31 @@ void render()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // Draw synthesized view
-    glUseProgram(app.glsl_program["nolight"].program);
+    glUseProgram(app.glsl_program["depth_ods"].program);
 
     glm::vec2 stereo_scale = glm::vec2(1.0, 0.5);
     glm::vec2 stereo_offset = glm::vec2(0.0, 0.0); // left
     //glm::vec2 stereo_offset = glm::vec2(0.0, 0.5); // right
 
-    glUniformMatrix4fv(app.glsl_program["nolight"].uniforms["modelview"], 1, GL_FALSE, glm::value_ptr(app.modelview));
-    glUniformMatrix4fv(app.glsl_program["nolight"].uniforms["projection"], 1, GL_FALSE, glm::value_ptr(app.projection));
-    glUniform2fv(app.glsl_program["nolight"].uniforms["texture_scale"], 1, glm::value_ptr(stereo_scale));
-    glUniform2fv(app.glsl_program["nolight"].uniforms["texture_offset"], 1, glm::value_ptr(stereo_offset));
+    glUniformMatrix4fv(app.glsl_program["depth_ods"].uniforms["modelview"], 1, GL_FALSE, glm::value_ptr(app.modelview));
+    glUniformMatrix4fv(app.glsl_program["depth_ods"].uniforms["projection"], 1, GL_FALSE, glm::value_ptr(app.projection));
+    glUniform2fv(app.glsl_program["depth_ods"].uniforms["texture_scale"], 1, glm::value_ptr(stereo_scale));
+    glUniform2fv(app.glsl_program["depth_ods"].uniforms["texture_offset"], 1, glm::value_ptr(stereo_offset));
+
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, app.render_texture_color);
-    glUniform1i(app.glsl_program["nolight"].uniforms["image"], 0);
-
-    //glBindVertexArray(app.quad_vertex_array);
-    //glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
-    //glBindVertexArray(0);
+    //glUniform1i(app.glsl_program["depth_ods"].uniforms["image"], 0); // not needed - layout in shader
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, app.render_texture_depth);
+    //glUniform1i(app.glsl_program["depth_ods"].uniforms["depths"], 1); // not needed - layout in shader
 
     glBindVertexArray(app.sphere_vertex_array);
     glDrawElements(GL_TRIANGLES, app.num_sphere_triangles, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     glUseProgram(0);
 
@@ -489,8 +519,8 @@ void synthesizeOdsImage(glm::vec3& camera_position)
     glBindTexture(GL_TEXTURE_2D, 0);
     char outname[96];
     //snprintf(outname, 96, "synthesized_views/novel_ods_dasp_%02d.png", app.fc);
-    snprintf(outname, 96, "synthesized_views/novel_ods_sos_%02d.png", app.fc);
-    //snprintf(outname, 96, "synthesized_views/novel_ods_cdep_%d.%d_%02d.png", app.ods_num_views, app.ods_max_views, app.fc);
+    //snprintf(outname, 96, "synthesized_views/novel_ods_sos_%02d.png", app.fc);
+    snprintf(outname, 96, "synthesized_views/novel_ods_cdep_%d.%d_%02d.png", app.ods_num_views, app.ods_max_views, app.fc);
     iioWriteImagePng(outname, app.ods_width, app.ods_height * 2, 4, flip, pixels);
     delete[] pixels;
     */
@@ -530,8 +560,7 @@ void onMouseMove(GLFWwindow* window, double x_pos, double y_pos)
         app.camera_yaw -= 2.25 * (delta_x / (double)app.window_width); // left/right
         app.camera_pitch -= 2.25 * (delta_y / (double)app.window_height); // up/down
 
-        app.modelview = glm::scale(glm::mat4(1.0), glm::vec3(49.5, 49.5, 49.5));
-        app.modelview = glm::rotate(app.modelview, (float)app.camera_pitch, glm::vec3(1.0, 0.0, 0.0));
+        app.modelview = glm::rotate(glm::mat4(1.0), (float)app.camera_pitch, glm::vec3(1.0, 0.0, 0.0));
         app.modelview = glm::rotate(app.modelview, (float)app.camera_yaw, glm::vec3(0.0, 1.0, 0.0));
 
         app.mouse_x = x_pos;
@@ -662,7 +691,6 @@ void initializeOdsRenderTargets()
 
     // Unbind textures
     glBindTexture(GL_TEXTURE_2D, 0);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
 
     // Create depth buffer object
     glGenRenderbuffers(1, &(app.render_depth_buffer));
@@ -1037,9 +1065,9 @@ void determineViews(glm::vec3& camera_position, int num_views, std::vector<int>&
     */
 
     // Sort based on distance
-    for (j = 0; j < view_indices.size() - 1; j++)
+    for (i = 0; i < view_indices.size() - 1; i++)
     {
-        for (i = j + 1; i < view_indices.size(); i++)
+        for (j = 0; j < view_indices.size() - 1 - i; j++)
         {
             float d1 = glm::distance2(camera_position, app.camera_positions[view_indices[j]]);
             float d2 = glm::distance2(camera_position, app.camera_positions[view_indices[j + 1]]);

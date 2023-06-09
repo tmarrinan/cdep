@@ -8,15 +8,17 @@ from PIL import Image
 
 
 def main():
-    output_name = 'ods_dasp_4k_'
-    exr = OpenEXR.InputFile('../public/data/office_dasp_4096x2048_1.5_denoise.exr')
+    output_name = 'truth_ods_spheres_07'
+    exr = OpenEXR.InputFile('../public/data/spheres_truth_7.exr')
     
     header = exr.header()
     dw = header['dataWindow']
     isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
-    cam_data = json.loads(header['Note'])
-    near = cam_data['near']
-    far = cam_data['far']
+    #cam_data = json.loads(header['Note'])
+    #near = cam_data['near']
+    #far = cam_data['far']
+    near = 0.1
+    far = 50.0
     print(near, far)
     
     color_channels = {}
@@ -60,6 +62,7 @@ def main():
         col_img = Image.fromarray(col_pixels, 'RGBA')
         col_img.save(f'{output_name}{view}.png', 'PNG')
     
+        """
         depth_channel[view].astype(np.float32).tofile(f'{output_name}{view}.depth')
         
         depth_u16 = depth_channel[view].flatten();
@@ -73,6 +76,7 @@ def main():
         rvl.write(struct.pack('ff', near, far))
         rvl.write(depth_rvl.tobytes())
         rvl.close()
+        """
 
 
 def hdr2srgb(raw_colors, size):

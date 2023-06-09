@@ -1,57 +1,90 @@
 import math
-import numpy as np
+import os
 from PIL import Image
 
 
 def main():
-    #truth = Image.open('C:\\Users\\tmarrinan\\Downloads\\novel_ods_truth.png')
-    #dasp = Image.open('C:\\Users\\tmarrinan\\Downloads\\novel_ods_dasp.png')
-    #cdep = Image.open('C:\\Users\\tmarrinan\\Downloads\\novel_ods_cdep.png')
-    truth = Image.open('C:\\Users\\tmarrinan\\Downloads\\novel_ods_truth_denoise.png')
-    dasp = Image.open('C:\\Users\\tmarrinan\\Downloads\\novel_ods_dasp_denoise.png')
-    cdep = Image.open('C:\\Users\\tmarrinan\\Downloads\\novel_ods_cdep_denoise.png')
+    directory = '../cpp/synthesized_views'
+    formats = ['novel_ods_spheres_dasp', 'novel_ods_spheres_sos', 'novel_ods_spheres_cdep_2.2', 'novel_ods_spheres_cdep_4.3',
+               'novel_ods_spheres_cdep_4.4', 'novel_ods_spheres_cdep_8.3', 'novel_ods_spheres_cdep_8.8']
+    for fmt in formats:
+        pixel_psnr = 0.0
+        sphere_psnr = 0.0
+        for i in range(8):
+            filepath = os.path.join(directory, f'{fmt}_{i:02d}.png')
+            truthpath = os.path.join(directory, f'truth_ods_spheres_{i:02d}.png')
+            signal_noise = psnr(filepath, truthpath)
+            pixel_psnr += signal_noise['pixel']
+            sphere_psnr += signal_noise['sphere']
+        print(fmt)
+        print(f'  PSNR: {pixel_psnr / 8}, WS-PSNR {sphere_psnr / 8}')
     
-    truth_arr = np.asarray(truth)
-    dasp_arr = np.asarray(dasp)
-    cdep_arr = np.asarray(cdep)
+def psnr(testname, truthname):
+    test = Image.open(testname)
+    truth = Image.open(truthname)
+    width, i_height = test.size
+    height = i_height // 2
     
-    dasp_psnr1 = psnr1(truth_arr, dasp_arr)
-    dasp_psnr2 = psnr2(truth_arr, dasp_arr)
-    cdep_psnr1 = psnr1(truth_arr, cdep_arr)
-    cdep_psnr2 = psnr2(truth_arr, cdep_arr)
+    test_px = list(test.getdata())
+    truth_px = list(truth.getdata())
     
-    print(f'PSNR1: DASP={dasp_psnr1:.2f}, CDEP={cdep_psnr1:.2f}')
-    print(f'PSNR2: DASP={dasp_psnr2:.2f}, CDEP={cdep_psnr2:.2f}')
-
-def psnr1(img1, img2):
-    err = np.subtract(img1, img2, dtype=np.int32)
-    mse = np.mean(np.square(err))
-    if mse == 0:
-        return 100.0
-    max_pixel = 255.0
-    signal_noise = 20 * math.log10(max_pixel / math.sqrt(mse))
-    return signal_noise
-
-def psnr2(img1, img2):
-    width = img1.shape[1]
-    height = img1.shape[0]
     sq_err = 0
+    sphere_sq_err = 0
     num_valid = 0
-    for y in range(height):
-        for x in range(width):
-            if img2[y][x][0] > 0 or img2[y][x][1] > 0 or img2[y][x][2] > 0:
-                err_r = int(img1[y][x][0]) - int(img2[y][x][0])
-                err_g = int(img1[y][x][1]) - int(img2[y][x][1])
-                err_b = int(img1[y][x][2]) - int(img2[y][x][2])
-                sq_err += (err_r * err_r) + (err_g * err_g) + (err_b * err_b)
+    sphere_valid_total = 0.0
+    for i in range(i_height):
+        r = i_height - i - 1
+        row = i % height;
+        lat1 = (180.0 * (row / height)) - 90.0
+        lat2 = (180.0 * ((row + 1) / height)) - 90.0
+        lon1 = -180.0
+        lon2 = 360.0 * (1.0 / width) - 180.0
+        sphere_weight = sphereAreaQuad(lat1, lon1, lat2, lon2)
+        for j in range(width):
+            if not isBlack(test_px[r * width + j]):
+                err_r = int(test_px[r * width + j][0]) - int(truth_px[r * width + j][0])
+                err_g = int(test_px[r * width + j][1]) - int(truth_px[r * width + j][1])
+                err_b = int(test_px[r * width + j][2]) - int(truth_px[r * width + j][2])
+                err2 = (err_r * err_r) + (err_g * err_g) + (err_b * err_b)
+                sq_err += err2
+                sphere_sq_err += sphere_weight * err2
                 num_valid += 1
-    mse = sq_err / (num_valid * 3)
-    print(mse, num_valid)
-    if mse == 0:
-        return 100.0
+                sphere_valid_total += sphere_weight
     max_pixel = 255.0
+    mse = sq_err / (num_valid * 3)
     signal_noise = 20 * math.log10(max_pixel / math.sqrt(mse))
-    return signal_noise
+    sphere_mse = sphere_sq_err / (sphere_valid_total * 3)
+    sphere_signal_noise = 20 * math.log10(max_pixel / math.sqrt(sphere_mse))
+    return {'pixel': signal_noise, 'sphere': sphere_signal_noise}
 
+def isBlack(pixel):
+    """
+    returns whether or not a pixel is black
+    """
+    if pixel[0] == 0 and pixel[1] == 0 and pixel[2] == 0:
+        return True
+    return False
+
+def sphereAreaQuad(lat1, lon1, lat2, lon2):
+    """
+    returns the surface area bounded by the parallels lat1 and lat2 and the meridians
+    lon1 and lon2. The output area is a fraction of the unit sphere's area of 4π, so
+    the result ranges from 0.0 to 1.0.
+    """
+    if lat2 < lat1:
+        tmp = lat1
+        lat1 = lat2
+        lat2 = tmp
+    if lon2 < lon1:
+        tmp = lon1
+        lon1 = lon2
+        lon2 = tmp
+    lat1 = math.radians(lat1)
+    lon1 = math.radians(lon1)
+    lat2 = math.radians(lat2)
+    lon2 = math.radians(lon2)
+    height = math.sin(lat2) - math.sin(lat1)
+    area = height * (lon2 - lon1)
+    return area / (4.0 * math.pi)
 
 main()

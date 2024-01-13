@@ -27,11 +27,21 @@ void main() {
     vec2 uv = texcoord * texture_scale + texture_offset;
 
     // Color
+    /*
+    float focal_range = 4.0;
+    float obj_distance = texture(depths, uv).r;
+    float coc = 5.0 * clamp((obj_distance - plane_in_focus) / focal_range, -1.0, 1.0);
+    if (coc < 0.0) coc *= -3.0;
+    FragColor = gaussianBlur(uv, coc);
+    */
+    /*
     float obj_distance = texture(depths, uv).r;
     float CoC = abs(aperture * (focal_length * (obj_distance - plane_in_focus)) / (obj_distance * (plane_in_focus - focal_length)));
     float blur_radius = 5000.0 * CoC;
     FragColor = gaussianBlur(uv, blur_radius);
-    //FragColor = texture2D(image, uv);
+    */
+    float obj_distance = texture(depths, uv).r;
+    FragColor = texture2D(image, uv);
 
     // Depth
     vec3 frag_pos = obj_distance * position;
@@ -44,6 +54,7 @@ void main() {
     gl_FragDepth = frag_depth;
 }
 
+/*
 vec4 gaussianBlur(vec2 uv, float radius) {
     vec4 color = vec4(0.0);
     vec2 resolution = vec2(4096, 2048);
@@ -59,3 +70,92 @@ vec4 gaussianBlur(vec2 uv, float radius) {
     }
     return color / 2.0;
 }
+*/
+
+
+vec4 gaussianBlur(vec2 uv, float radius) {
+    float r_step = 0.125;
+    vec4 color;
+    if (radius <= r_step) {
+        color = texture(image, uv);
+    }
+    else {
+        float focal_range = 4.0;
+        vec2 resolution = vec2(4096, 2048);
+        vec2 dirs[16] = vec2[](vec2(cos(0.000 * M_PI), sin(0.000 * M_PI)),
+                               vec2(cos(0.125 * M_PI), sin(0.125 * M_PI)),
+                               vec2(cos(0.250 * M_PI), sin(0.250 * M_PI)),
+                               vec2(cos(0.375 * M_PI), sin(0.375 * M_PI)),
+                               vec2(cos(0.500 * M_PI), sin(0.500 * M_PI)),
+                               vec2(cos(0.625 * M_PI), sin(0.625 * M_PI)),
+                               vec2(cos(0.750 * M_PI), sin(0.750 * M_PI)),
+                               vec2(cos(0.875 * M_PI), sin(0.875 * M_PI)),
+                               vec2(cos(1.000 * M_PI), sin(1.000 * M_PI)),
+                               vec2(cos(1.125 * M_PI), sin(1.125 * M_PI)),
+                               vec2(cos(1.250 * M_PI), sin(1.250 * M_PI)),
+                               vec2(cos(1.375 * M_PI), sin(1.375 * M_PI)),
+                               vec2(cos(1.500 * M_PI), sin(1.500 * M_PI)),
+                               vec2(cos(1.625 * M_PI), sin(1.625 * M_PI)),
+                               vec2(cos(1.750 * M_PI), sin(1.750 * M_PI)),
+                               vec2(cos(1.875 * M_PI), sin(1.875 * M_PI)));
+        float weight = radius * radius;
+        color = weight * texture(image, uv);
+        for (float r = r_step; r < radius; r += r_step) {
+            for (int i = 0; i < 16; i++) {
+                vec2 neighbor_uv = uv + dirs[i] * r / resolution;
+                float neightbor_depth = texture(depths, neighbor_uv).r;
+                float neightbor_coc = 5.0 * clamp((neightbor_depth - plane_in_focus) / focal_range, -1.0, 1.0);
+                if (neightbor_coc < 0.0) neightbor_coc *= -3.0;
+                if (neightbor_coc > 0.1) {
+                    float w = radius - r;
+                    float final_w = (w * w) * neightbor_coc;
+                    color += final_w * texture(image, neighbor_uv);
+                    weight += final_w;
+                }
+            }
+        }
+        color /= weight;
+    }
+    return color;
+}
+
+/*
+vec4 gaussianBlur(vec2 uv, float radius) {
+    float focal_range = 5.5;
+    vec2 resolution = vec2(4096, 2048);
+    vec2 dirs[16] = vec2[](vec2(cos(0.000 * M_PI), sin(0.000 * M_PI)),
+                           vec2(cos(0.125 * M_PI), sin(0.125 * M_PI)),
+                           vec2(cos(0.250 * M_PI), sin(0.250 * M_PI)),
+                           vec2(cos(0.375 * M_PI), sin(0.375 * M_PI)),
+                           vec2(cos(0.500 * M_PI), sin(0.500 * M_PI)),
+                           vec2(cos(0.625 * M_PI), sin(0.625 * M_PI)),
+                           vec2(cos(0.750 * M_PI), sin(0.750 * M_PI)),
+                           vec2(cos(0.875 * M_PI), sin(0.875 * M_PI)),
+                           vec2(cos(1.000 * M_PI), sin(1.000 * M_PI)),
+                           vec2(cos(1.125 * M_PI), sin(1.125 * M_PI)),
+                           vec2(cos(1.250 * M_PI), sin(1.250 * M_PI)),
+                           vec2(cos(1.375 * M_PI), sin(1.375 * M_PI)),
+                           vec2(cos(1.500 * M_PI), sin(1.500 * M_PI)),
+                           vec2(cos(1.625 * M_PI), sin(1.625 * M_PI)),
+                           vec2(cos(1.750 * M_PI), sin(1.750 * M_PI)),
+                           vec2(cos(1.875 * M_PI), sin(1.875 * M_PI)));
+    float max_blur = 2.0;
+    vec4 color = texture(image, uv);
+    float depth = texture(depths, uv).r;
+    float weight = 1.0;
+    for (float r = 0.0; r < max_blur; r += 0.25) {
+        for (int i = 0; i < 16; i++) {
+            vec2 neighbor_uv = uv + dirs[i] * r / resolution;
+            float neightbor_depth = texture(depths, neighbor_uv).r;
+            if (neightbor_depth < depth) {
+                float neightbor_coc = 1.5 * clamp((neightbor_depth - plane_in_focus) / focal_range, -1.0, 1.0);
+                if (neightbor_coc < 0.0) neightbor_coc *= -3.0;
+                float w = neightbor_coc * neightbor_coc;
+                color += w * texture(image, neighbor_uv);
+                weight += w;
+            }
+        }
+    }
+    return color / weight;
+}
+*/

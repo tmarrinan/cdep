@@ -78,6 +78,7 @@ typedef struct AppData {
     double mouse_y;
     double camera_yaw;
     double camera_pitch;
+    double fov;
     float aperture;
     float focal_length;
     float plane_in_focus;
@@ -112,8 +113,8 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    app.window_width = 1280;
-    app.window_height = 720;
+    app.window_width = 800; //1920;
+    app.window_height = 450; //1080;
 
     // Create a window and its OpenGL context
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -130,7 +131,7 @@ int main(int argc, char **argv)
 
     // Make window's context current
     glfwMakeContextCurrent(app.window);
-    glfwSwapInterval(0); // 0: render as fast as possible, 1: sync render with monitor
+    glfwSwapInterval(1); // 0: render as fast as possible, 1: sync render with monitor
 
     // Initialize GLAD OpenGL extension handling
     if (gladLoadGL(glfwGetProcAddress) == 0)
@@ -189,11 +190,21 @@ int main(int argc, char **argv)
         // Animation - synthesize view
         t = now - start_time;
         //t += 4.0 * M_PI / num_frames;
-        app.synthesized_position = glm::vec3(0.0, 1.70, 0.725);
+        
+        //app.synthesized_position = glm::vec3(0.0, 1.70, 0.725);
+        
+        //app.synthesized_position = glm::vec3(-2.37, 1.66, -13.49) + glm::vec3(0.015 * cos(0.5 * t), 0.004 * cos(t), 0.3 * sin(t));
+        app.synthesized_position = glm::vec3(-2.3902531743086084, 1.6660253403880460, -13.4645635290832);
+        
+        //app.synthesized_position = glm::vec3(0.0, 1.70, 0.0);
         //app.synthesized_position = glm::vec3(0.0, 1.70, 0.725) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
-        app.plane_in_focus = 2.75 + 1.25 * cos(1.0 * t);
+        //app.plane_in_focus = 2.75 + 1.25 * cos(1.0 * t);
+        app.plane_in_focus = 5.25 + 3.5 * cos(1.0 * t);
+        //printf("%.4f\n", app.plane_in_focus);
+        app.aperture = 0.031;
         //app.aperture = 0.025 + 0.015 * cos(1.0 * t);
         //app.synthesized_position = glm::vec3(0.0, 1.70, 0.0) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
+        
         app.cube_model_matrix = glm::translate(glm::mat4(1.0), glm::vec3(-0.2, -0.6 + 0.65 * cos(0.5 * t), -1.05)) *
                                 glm::scale(glm::mat4(1.0), glm::vec3(0.125, 0.125, 0.125));
         
@@ -308,26 +319,36 @@ void init()
 #else
     // C-DEP
     app.ods_format = OdsFormat::CDEP;
-    app.ods_num_views = 8;
-    app.ods_max_views = 8;
-    double near = 0.1;
-    double far = 50.0;
-    float cam_position1[3] = {-0.35, 1.85, 0.55};
-    float cam_position2[3] = { 0.35, 1.55, 0.90};
-    float cam_position3[3] = {-0.10, 1.75, 0.85};
-    float cam_position4[3] = { 0.25, 1.70, 0.60};
-    float cam_position5[3] = {-0.30, 1.67, 0.75};
-    float cam_position6[3] = {-0.20, 1.60, 0.70};
-    float cam_position7[3] = { 0.15, 1.78, 0.57};
-    float cam_position8[3] = { 0.05, 1.82, 0.87};
-    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_1", cam_position1);
-    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_2", cam_position2);
-    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_3", cam_position3);
-    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_4", cam_position4);
-    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_5", cam_position5);
-    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_6", cam_position6);
-    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_7", cam_position7);
-    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_8", cam_position8);
+    app.ods_num_views = 3; //8;
+    app.ods_max_views = 2; //6;
+    double near = 0.01; //0.1;
+    double far = 30.0; //50.0;
+
+    float cam_position1[3] = {-2.3638009325989064, 1.6626330584754445, -13.1379285788494};
+    float cam_position2[3] = {-2.3431789554542077, 1.6553537411051626, -13.8433799047119};
+    //float cam_position2[3] = {-2.3431789554542077, 1.6553537411051626, -13.9133799047119};
+    float cam_position3[3] = {-2.3902531743086084, 1.6660253403880460, -13.4645635290832};
+    initializeOdsTextures("./resrc/images/hallway_2k_camera_1", cam_position1);
+    initializeOdsTextures("./resrc/images/hallway_2k_camera_2", cam_position2);
+    initializeOdsTextures("./resrc/images/hallway_2k_camera_3", cam_position3);
+
+    // float cam_position1[3] = {-0.35, 1.85, 0.55};
+    // float cam_position2[3] = { 0.35, 1.55, 0.90};
+    // float cam_position3[3] = {-0.10, 1.75, 0.85};
+    // float cam_position4[3] = { 0.25, 1.70, 0.60};
+    // float cam_position5[3] = {-0.30, 1.67, 0.75};
+    // float cam_position6[3] = {-0.20, 1.60, 0.70};
+    // float cam_position7[3] = { 0.15, 1.78, 0.57};
+    // float cam_position8[3] = { 0.05, 1.82, 0.87};
+    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_1", cam_position1);
+    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_2", cam_position2);
+    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_3", cam_position3);
+    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_4", cam_position4);
+    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_5", cam_position5);
+    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_6", cam_position6);
+    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_7", cam_position7);
+    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_8", cam_position8);
+
     // float cam_position1[3] = {-0.35, 1.85, -0.175};
     // float cam_position2[3] = { 0.35, 1.55,  0.175};
     // float cam_position3[3] = {-0.10, 1.75,  0.125};
@@ -362,8 +383,11 @@ void init()
     app.ods_projection = glm::ortho(2.0 * M_PI, 0.0, M_PI, 0.0, near, far);
 
     // Set App view modelview and projection matrices
+    app.fov = 85.0;
     app.modelview = glm::mat4(1.0);
-    app.projection = glm::perspective(75.0 * M_PI / 180.0, (double)app.window_width / (double)app.window_height, 0.1, 100.0);
+    //app.projection = glm::perspective(75.0 * M_PI / 180.0, (double)app.window_width / (double)app.window_height, 0.1, 100.0);
+    app.projection = glm::perspective(app.fov * M_PI / 180.0, (double)app.window_width / (double)app.window_height, 0.1, 100.0);
+    //app.projection = glm::perspective(45.0 * M_PI / 180.0, (double)app.window_width / (double)app.window_height, 0.1, 100.0);
 
     app.view_pan = false;
     app.camera_yaw = 0.0;
@@ -431,6 +455,7 @@ void render()
     glBindVertexArray(0);
 
     // Add cube to scene
+    /*
     glUseProgram(app.glsl_program["phong"].program);
 
     glUniformMatrix4fv(app.glsl_program["phong"].uniforms["model"], 1, GL_FALSE, glm::value_ptr(app.cube_model_matrix));
@@ -444,7 +469,8 @@ void render()
     glBindVertexArray(app.cube_vertex_array);
     glDrawElements(GL_TRIANGLES, app.num_cube_triangles, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
-
+    */
+    
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -533,7 +559,7 @@ void synthesizeOdsImage(glm::vec3& camera_position)
 
         glUniform1f(app.glsl_program["DEP"].uniforms["camera_ipd"], 0.065);
         glUniform1f(app.glsl_program["DEP"].uniforms["camera_focal_dist"], 1.95);
-        glUniform1f(app.glsl_program["DEP"].uniforms["xr_fovy"], 75.0 * M_PI / 180.0);
+        glUniform1f(app.glsl_program["DEP"].uniforms["xr_fovy"], app.fov * M_PI / 180.0);
         glUniform1f(app.glsl_program["DEP"].uniforms["xr_aspect"], (float)app.window_width / (float)app.window_height);
         glUniform3fv(app.glsl_program["DEP"].uniforms["xr_view_dir"], 1, glm::value_ptr(xr_view_dir));
         glUniformMatrix4fv(app.glsl_program["DEP"].uniforms["ortho_projection"], 1, GL_FALSE, glm::value_ptr(app.ods_projection));
@@ -594,7 +620,7 @@ void onResize(GLFWwindow *window, int width, int height)
     app.window_width = width;
     app.window_height = height;
 
-    app.projection = glm::perspective(75.0 * M_PI / 180.0, (double)app.window_width / (double)app.window_height, 0.1, 100.0);
+    app.projection = glm::perspective(app.fov * M_PI / 180.0, (double)app.window_width / (double)app.window_height, 0.1, 100.0);
 }
 
 void onMouseButton(GLFWwindow* window, int button, int action, int mods)
@@ -628,6 +654,12 @@ void onMouseMove(GLFWwindow* window, double x_pos, double y_pos)
 
         app.mouse_x = x_pos;
         app.mouse_y = y_pos;
+
+        // app.camera_yaw = 3.0 / 4.0 * M_PI; // left/right
+        // app.camera_pitch = 0.0; // up/down
+
+        // app.modelview = glm::rotate(glm::mat4(1.0), (float)app.camera_pitch, glm::vec3(1.0, 0.0, 0.0));
+        // app.modelview = glm::rotate(app.modelview, (float)app.camera_yaw, glm::vec3(0.0, 1.0, 0.0));
     }
 }
 
@@ -737,8 +769,8 @@ void initializeOdsRenderTargets()
     glBindTexture(GL_TEXTURE_2D, app.render_texture_color);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, app.ods_width, 2 * app.ods_height, 0, GL_RGBA, 
                  GL_UNSIGNED_BYTE, NULL);
 
@@ -747,8 +779,8 @@ void initializeOdsRenderTargets()
     glBindTexture(GL_TEXTURE_2D, app.render_texture_depth);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, app.ods_width, 2 * app.ods_height, 0, GL_RED, 
                  GL_FLOAT, NULL);
 
@@ -911,88 +943,13 @@ void createCube()
 
     // Create arrays for vertex positions and texture coordinates
     GLfloat vertices[72], texcoords[48], normals[72];
-    for (int i = 0; i < 6; i++) // left, right, bottom, top, front, back
+    for (int i = 0; i < 6; i++) // back, left, right, bottom, top, front
     {
-        float norm_x = (i == 0) ? -1.0 : (i == 1) ? 1.0 : 0.0;
-        float norm_y = (i == 2) ? -1.0 : (i == 3) ? 1.0 : 0.0;
-        float norm_z = (i == 4) ? -1.0 : (i == 5) ? 1.0 : 0.0;
+        float norm_x = (i == 1) ? -1.0 : (i == 2) ? 1.0 : 0.0;
+        float norm_y = (i == 3) ? -1.0 : (i == 4) ? 1.0 : 0.0;
+        float norm_z = (i == 0) ? -1.0 : (i == 5) ? 1.0 : 0.0;
 
-        if (i == 0)
-        {
-            vertices[12 * i + 0] = -1.0;
-            vertices[12 * i + 1] = -1.0;
-            vertices[12 * i + 2] =  1.0;
-            vertices[12 * i + 3] = -1.0;
-            vertices[12 * i + 4] = -1.0;
-            vertices[12 * i + 5] = -1.0;
-            vertices[12 * i + 6] = -1.0;
-            vertices[12 * i + 7] =  1.0;
-            vertices[12 * i + 8] = -1.0;
-            vertices[12 * i + 9] = -1.0;
-            vertices[12 * i + 10] = 1.0;
-            vertices[12 * i + 11] = 1.0;
-        }
-        else if (i == 1)
-        {
-            vertices[12 * i + 0] =   1.0;
-            vertices[12 * i + 1] =  -1.0;
-            vertices[12 * i + 2] =  -1.0;
-            vertices[12 * i + 3] =   1.0;
-            vertices[12 * i + 4] =  -1.0;
-            vertices[12 * i + 5] =   1.0;
-            vertices[12 * i + 6] =   1.0;
-            vertices[12 * i + 7] =   1.0;
-            vertices[12 * i + 8] =   1.0;
-            vertices[12 * i + 9] =   1.0;
-            vertices[12 * i + 10] =  1.0;
-            vertices[12 * i + 11] = -1.0;
-        }
-        else if (i == 2)
-        {
-            vertices[12 * i + 0] =  -1.0;
-            vertices[12 * i + 1] =  -1.0;
-            vertices[12 * i + 2] =   1.0;
-            vertices[12 * i + 3] =   1.0;
-            vertices[12 * i + 4] =  -1.0;
-            vertices[12 * i + 5] =   1.0;
-            vertices[12 * i + 6] =   1.0;
-            vertices[12 * i + 7] =  -1.0;
-            vertices[12 * i + 8] =  -1.0;
-            vertices[12 * i + 9] =  -1.0;
-            vertices[12 * i + 10] = -1.0;
-            vertices[12 * i + 11] = -1.0;
-        }
-        else if (i == 3)
-        {
-            vertices[12 * i + 0] =  -1.0;
-            vertices[12 * i + 1] =   1.0;
-            vertices[12 * i + 2] =  -1.0;
-            vertices[12 * i + 3] =   1.0;
-            vertices[12 * i + 4] =   1.0;
-            vertices[12 * i + 5] =  -1.0;
-            vertices[12 * i + 6] =   1.0;
-            vertices[12 * i + 7] =   1.0;
-            vertices[12 * i + 8] =   1.0;
-            vertices[12 * i + 9] =  -1.0;
-            vertices[12 * i + 10] =  1.0;
-            vertices[12 * i + 11] =  1.0;
-        }
-        else if (i == 4)
-        {
-            vertices[12 * i + 0] =  -1.0;
-            vertices[12 * i + 1] =  -1.0;
-            vertices[12 * i + 2] =  -1.0;
-            vertices[12 * i + 3] =   1.0;
-            vertices[12 * i + 4] =  -1.0;
-            vertices[12 * i + 5] =  -1.0;
-            vertices[12 * i + 6] =   1.0;
-            vertices[12 * i + 7] =   1.0;
-            vertices[12 * i + 8] =  -1.0;
-            vertices[12 * i + 9] =  -1.0;
-            vertices[12 * i + 10] =  1.0;
-            vertices[12 * i + 11] = -1.0;
-        }
-        else
+        if (i == 5)
         {
             vertices[12 * i + 0] =   1.0;
             vertices[12 * i + 1] =  -1.0;
@@ -1007,6 +964,82 @@ void createCube()
             vertices[12 * i + 10] =  1.0;
             vertices[12 * i + 11] =  1.0;
         }
+        else if (i == 1)
+        {
+            vertices[12 * i + 0] = -1.0;
+            vertices[12 * i + 1] = -1.0;
+            vertices[12 * i + 2] =  1.0;
+            vertices[12 * i + 3] = -1.0;
+            vertices[12 * i + 4] = -1.0;
+            vertices[12 * i + 5] = -1.0;
+            vertices[12 * i + 6] = -1.0;
+            vertices[12 * i + 7] =  1.0;
+            vertices[12 * i + 8] = -1.0;
+            vertices[12 * i + 9] = -1.0;
+            vertices[12 * i + 10] = 1.0;
+            vertices[12 * i + 11] = 1.0;
+        }
+        else if (i == 2)
+        {
+            vertices[12 * i + 0] =   1.0;
+            vertices[12 * i + 1] =  -1.0;
+            vertices[12 * i + 2] =  -1.0;
+            vertices[12 * i + 3] =   1.0;
+            vertices[12 * i + 4] =  -1.0;
+            vertices[12 * i + 5] =   1.0;
+            vertices[12 * i + 6] =   1.0;
+            vertices[12 * i + 7] =   1.0;
+            vertices[12 * i + 8] =   1.0;
+            vertices[12 * i + 9] =   1.0;
+            vertices[12 * i + 10] =  1.0;
+            vertices[12 * i + 11] = -1.0;
+        }
+        else if (i == 3)
+        {
+            vertices[12 * i + 0] =  -1.0;
+            vertices[12 * i + 1] =  -1.0;
+            vertices[12 * i + 2] =   1.0;
+            vertices[12 * i + 3] =   1.0;
+            vertices[12 * i + 4] =  -1.0;
+            vertices[12 * i + 5] =   1.0;
+            vertices[12 * i + 6] =   1.0;
+            vertices[12 * i + 7] =  -1.0;
+            vertices[12 * i + 8] =  -1.0;
+            vertices[12 * i + 9] =  -1.0;
+            vertices[12 * i + 10] = -1.0;
+            vertices[12 * i + 11] = -1.0;
+        }
+        else if (i == 4)
+        {
+            vertices[12 * i + 0] =  -1.0;
+            vertices[12 * i + 1] =   1.0;
+            vertices[12 * i + 2] =  -1.0;
+            vertices[12 * i + 3] =   1.0;
+            vertices[12 * i + 4] =   1.0;
+            vertices[12 * i + 5] =  -1.0;
+            vertices[12 * i + 6] =   1.0;
+            vertices[12 * i + 7] =   1.0;
+            vertices[12 * i + 8] =   1.0;
+            vertices[12 * i + 9] =  -1.0;
+            vertices[12 * i + 10] =  1.0;
+            vertices[12 * i + 11] =  1.0;
+        }
+        else if (i == 0)
+        {
+            vertices[12 * i + 0] =  -1.0;
+            vertices[12 * i + 1] =  -1.0;
+            vertices[12 * i + 2] =  -1.0;
+            vertices[12 * i + 3] =   1.0;
+            vertices[12 * i + 4] =  -1.0;
+            vertices[12 * i + 5] =  -1.0;
+            vertices[12 * i + 6] =   1.0;
+            vertices[12 * i + 7] =   1.0;
+            vertices[12 * i + 8] =  -1.0;
+            vertices[12 * i + 9] =  -1.0;
+            vertices[12 * i + 10] =  1.0;
+            vertices[12 * i + 11] = -1.0;
+        }
+        
 
         texcoords[8 * i + 0] = 0.0;
         texcoords[8 * i + 1] = 0.0;

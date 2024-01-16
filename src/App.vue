@@ -180,15 +180,15 @@ function createScene(render_type) {
     let frame = 0;
     babylon.engine.runRenderLoop(() => {
         //cdep_compute.renderScene();
-        if (cdep_compute.rgbd_target !== null) {
-            let view_params = {
-                synthesized_position: new Vector3(0.0, 1.70, 0.725),
-                ipd: 0.065,
-                focal_dist: 1.95,
-                z_max: 12.0
-            };
-            cdep_compute.synthesizeView(view_params);
-        }
+        // if (cdep_compute.rgbd_target !== null) {
+        //     let view_params = {
+        //         synthesized_position: new Vector3(0.0, 1.70, 0.725),
+        //         ipd: 0.065,
+        //         focal_dist: 1.95,
+        //         z_max: 12.0
+        //     };
+        //     cdep_compute.synthesizeView(view_params);
+        // }
 
         babylon.scene.render();
         frame++;

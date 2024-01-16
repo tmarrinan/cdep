@@ -3,7 +3,6 @@ import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { ShaderMaterial } from '@babylonjs/core/Materials/shaderMaterial';
 import { MultiRenderTarget } from '@babylonjs/core/Materials/Textures/multiRenderTarget';
-import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Constants } from '@babylonjs/core/Engines/constants';
@@ -236,9 +235,10 @@ class CdepWebGL extends CdepAbstract {
     }
 
     getRgbdBuffer() {
-        return new Promise((resolve, reject) => {
-            resolve(this.rgbd_target.textures);
-        });
+        // return new Promise((resolve, reject) => {
+        //     resolve(this.rgbd_target.textures);
+        // });
+        return this.rgbd_target.textures;
     }
 
     renderScene() {

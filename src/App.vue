@@ -137,40 +137,41 @@ function createScene(render_type) {
         };
         cdep_compute.synthesizeView(view_params);
 
-        // Read back and display
-        return cdep_compute.getRgbdBuffer();
+        // Update textures on model
+        let textures = cdep_compute.getRgbdBuffer();
+        cdep_mat.emissiveTexture = textures[0];
     })
-    .then((data) => {
-            if (render_type === 'WebGPU') {
-            //let end = performance.now();
-            //console.log('compute:', ((end - start) / num_comp).toFixed(1) + 'ms');
-            let out_data = new Uint32Array(data.buffer);
-            let out_depths = new Float32Array(out_data.length);
-            let out_colors = new Uint8Array(out_data.length * 4);
-            for (let i = 0; i < out_data.length; i++) {
-                let depth = (out_data[i] >> 20) & 0xFFF;
-                let blue = (out_data[i] >> 14) & 0x3F;
-                let green = (out_data[i] >> 7) & 0x7F;
-                let red = out_data[i] & 0x7F;
-                out_depths[i] =  depth / 4095.0;
-                out_colors[4 * i + 0] = (red / 128.0) * 255.0;
-                out_colors[4 * i + 1] = (green / 128.0) * 255.0;
-                out_colors[4 * i + 2] = (blue / 64.0) * 255.0;
-                out_colors[4 * i + 3] = 255;
-            }
-            const out_image_texture = new RawTexture(out_colors, image_size.width, image_size.height * 2, 
-                                                    Constants.TEXTUREFORMAT_RGBA, babylon.scene, false, true,
-                                                    Constants.BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_UNSIGNED_BYTE);
-            const out_depth_texture = new RawTexture(out_depths, image_size.width, image_size.height * 2, 
-                                                    Constants.TEXTUREFORMAT_R, babylon.scene, false, true,
-                                                    Constants.BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_FLOAT);
-            cdep_mat.emissiveTexture = out_image_texture;
-            //cdep_mat.emissiveTexture = out_depth_texture;
-        }
-        else {
-            cdep_mat.emissiveTexture = data[0];
-        }
-    })
+    // .then((data) => {
+    //         if (render_type === 'WebGPU') {
+    //         //let end = performance.now();
+    //         //console.log('compute:', ((end - start) / num_comp).toFixed(1) + 'ms');
+    //         let out_data = new Uint32Array(data.buffer);
+    //         let out_depths = new Float32Array(out_data.length);
+    //         let out_colors = new Uint8Array(out_data.length * 4);
+    //         for (let i = 0; i < out_data.length; i++) {
+    //             let depth = (out_data[i] >> 20) & 0xFFF;
+    //             let blue = (out_data[i] >> 14) & 0x3F;
+    //             let green = (out_data[i] >> 7) & 0x7F;
+    //             let red = out_data[i] & 0x7F;
+    //             out_depths[i] =  depth / 4095.0;
+    //             out_colors[4 * i + 0] = (red / 128.0) * 255.0;
+    //             out_colors[4 * i + 1] = (green / 128.0) * 255.0;
+    //             out_colors[4 * i + 2] = (blue / 64.0) * 255.0;
+    //             out_colors[4 * i + 3] = 255;
+    //         }
+    //         const out_image_texture = new RawTexture(out_colors, image_size.width, image_size.height * 2, 
+    //                                                 Constants.TEXTUREFORMAT_RGBA, babylon.scene, false, true,
+    //                                                 Constants.BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_UNSIGNED_BYTE);
+    //         const out_depth_texture = new RawTexture(out_depths, image_size.width, image_size.height * 2, 
+    //                                                 Constants.TEXTUREFORMAT_R, babylon.scene, false, true,
+    //                                                 Constants.BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_FLOAT);
+    //         cdep_mat.emissiveTexture = out_image_texture;
+    //         //cdep_mat.emissiveTexture = out_depth_texture;
+    //     }
+    //     else {
+    //         cdep_mat.emissiveTexture = data[0];
+    //     }
+    // })
     .catch((error) => {
         console.log(error);
     });
@@ -179,8 +180,7 @@ function createScene(render_type) {
     // Render every frame
     let frame = 0;
     babylon.engine.runRenderLoop(() => {
-        //cdep_compute.renderScene();
-        // if (cdep_compute.rgbd_target !== null) {
+        // if (cdep_compute.rgbd_target !== null && cdep_compute.rgbd_buffer !== null) {
         //     let view_params = {
         //         synthesized_position: new Vector3(0.0, 1.70, 0.725),
         //         ipd: 0.065,
@@ -199,7 +199,7 @@ function createScene(render_type) {
 onMounted(async () => {
     babylon.canvas = document.getElementById('gpu-canvas');
 
-    let force_gl = true;
+    let force_gl = false;
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {

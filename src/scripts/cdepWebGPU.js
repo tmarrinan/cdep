@@ -1,6 +1,8 @@
 import { ComputeShader } from '@babylonjs/core/Compute/computeShader';
 import { StorageBuffer } from '@babylonjs/core/Buffers/storageBuffer';
 import { UniformBuffer} from '@babylonjs/core/Materials/uniformBuffer';
+import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
+import { Constants } from '@babylonjs/core/Engines/constants';
 import { CdepAbstract } from './cdepAbstract';
 
 // Compute Shader source code - clear RGB-D buffer
@@ -156,7 +158,40 @@ fn packRgb776d12(rgb : vec3<f32>, depth : f32) -> u32 {
     let g7 = u32(rgb.g * 127.0);
     let b6 = u32(rgb.b * 63.0);
     let d12 = u32(depth * 4095.0);
-    return ((d12 &0xFFF) << 20) | ((b6 &0x3F) << 14) | ((g7 &0x7F) << 7) | (r7 &0x7F);
+    return ((d12 & 0xFFF) << 20) | ((b6 & 0x3F) << 14) | ((g7 & 0x7F) << 7) | (r7 & 0x7F);
+}
+`;
+
+// Compute Shader source code - clear RGB-D buffer
+const rgbd_to_texture_src = `
+struct Params {
+    dims : vec2<u32>,
+    z_max : f32
+};
+
+@group(0) @binding(0) var<uniform> params : Params;
+@group(0) @binding(1) var<storage,read> rgbd : array<u32>;
+@group(0) @binding(2) var out_rgba : texture_storage_2d<rgba8unorm,write>;
+@group(0) @binding(3) var out_depth : texture_storage_2d<r32float,write>;
+
+@compute @workgroup_size(8, 8, 1)
+
+fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
+    if (global_id.x < params.dims.x && global_id.y < params.dims.y) {
+        let pix_idx : u32 = (params.dims.y - global_id.y - 1) * params.dims.x  + global_id.x;
+        let rgba : vec4<f32> = unpackColorRgb776d12(rgbd[pix_idx]);
+        let depth : f32 = unpackDepthRgb776d12(rgbd[pix_idx]);
+        textureStore(out_rgba, global_id.xy, rgba);
+        textureStore(out_depth, global_id.xy, vec4<f32>(depth, 0.0, 0.0, 1.0));
+    }
+}
+
+fn unpackColorRgb776d12(rgb776d12 : u32) -> vec4<f32> {
+    return vec4<f32>(f32(rgb776d12 & 0x7F) / 128.0, f32((rgb776d12 >> 7) & 0x7F) / 128.0, f32((rgb776d12 >> 14) & 0x3F) / 64.0, 1.0);
+}
+
+fn unpackDepthRgb776d12(rgb776d12 : u32) -> f32 {
+    return params.z_max * f32(rgb776d12 >> 20) / 4095.0;
 }
 `;
 
@@ -182,6 +217,17 @@ class CdepWebGPU extends CdepAbstract {
         };
         this.cdep_cs = new ComputeShader('cdep_compute', this.engine, {computeSource: cdep_src}, cdep_cs_info);
 
+        const rgbd_to_texture_cs_info = {
+            bindingsMapping: {
+                'params': { group: 0, binding: 0 },
+                'rgbd': { group: 0, binding: 1 },
+                'out_rgba': { group: 0, binding: 2 },
+                'out_depth': { group: 0, binding: 3 }
+            }
+        };
+        this.rgbd_to_texture_cs = new ComputeShader('rgbd_to_texture_compute', this.engine, {computeSource: rgbd_to_texture_src},
+                                                    rgbd_to_texture_cs_info);
+
         this.clear_params = new UniformBuffer(this.engine, undefined, false, 'clear_buffer');
         this.clear_params.addUniform('dims', 2);
 
@@ -192,7 +238,12 @@ class CdepWebGPU extends CdepAbstract {
         this.params.addUniform('z_max', 1);
         this.params.addUniform('depth_hint', 1);
 
+        this.tex_params = new UniformBuffer(this.engine, undefined, false, 'rgba_to_texture_buffer');
+        this.tex_params.addUniform('dims', 2);
+        this.tex_params.addUniform('z_max', 1);
+
         this.rgbd_buffer = null;
+        this.rgbd_textures = [];
     }
 
     initializeOutputBuffer(width, height) {
@@ -202,6 +253,18 @@ class CdepWebGPU extends CdepAbstract {
         this.clear_cs.setUniformBuffer('params', this.clear_params);
         this.clear_cs.setStorageBuffer('out_rgbd', this.rgbd_buffer);
         this.cdep_cs.setStorageBuffer('out_rgbd', this.rgbd_buffer);
+        this.tex_params.updateUInt2('dims', width, height * 2);
+
+        let rgba_texture = new RawTexture(null, width, height * 2, Constants.TEXTUREFORMAT_RGBA, this.scene, false, false,
+                                          Constants.TEXTURE_BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_UNSIGNED_BYTE,
+                                          Constants.TEXTURE_CREATIONFLAG_STORAGE);
+        let depth_texture = new RawTexture(null, width, height * 2, Constants.TEXTUREFORMAT_R, this.scene, false, false,
+                                           Constants.TEXTURE_NEAREST_SAMPLINGMODE, Constants.TEXTURETYPE_FLOAT,
+                                           Constants.TEXTURE_CREATIONFLAG_STORAGE);
+        this.rgbd_textures = [rgba_texture, depth_texture];
+        this.rgbd_to_texture_cs.setStorageBuffer('rgbd', this.rgbd_buffer);
+        this.rgbd_to_texture_cs.setTexture('out_rgba', this.rgbd_textures[0], false);
+        this.rgbd_to_texture_cs.setTexture('out_depth', this.rgbd_textures[1], false);
     }
 
     synthesizeView(view_params) {
@@ -226,15 +289,21 @@ class CdepWebGPU extends CdepAbstract {
             this.params.updateFloat('depth_hint', depth_hint);
             this.params.update();
             this.cdep_cs.setUniformBuffer('params', this.params);
-
             this.cdep_cs.dispatch(n_groups_x, n_groups_y, 1);
 
             depth_hint += 0.015;
         }
+
+        // Convert RGB-D buffer to textures
+        this.tex_params.updateFloat('z_max', view_params.z_max);
+        this.tex_params.update();
+        this.rgbd_to_texture_cs.setUniformBuffer('params', this.tex_params);
+        this.rgbd_to_texture_cs.dispatch(n_groups_x, n_groups_y * 2, 1);
     }
 
     getRgbdBuffer() {
-        return this.rgbd_buffer.read();
+        //return this.rgbd_buffer.read();
+        return this.rgbd_textures;
     }
 }
 

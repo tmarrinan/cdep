@@ -301,8 +301,7 @@ class CdepWebGPU extends CdepAbstract {
         this.rgbd_to_texture_cs.dispatch(n_groups_x, n_groups_y * 2, 1);
     }
 
-    getRgbdBuffer() {
-        //return this.rgbd_buffer.read();
+    getRgbdTextures() {
         return this.rgbd_textures;
     }
 }

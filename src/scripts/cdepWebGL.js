@@ -234,17 +234,8 @@ class CdepWebGL extends CdepAbstract {
         this.rgbd_target.render();
     }
 
-    getRgbdBuffer() {
-        // return new Promise((resolve, reject) => {
-        //     resolve(this.rgbd_target.textures);
-        // });
+    getRgbdTextures() {
         return this.rgbd_target.textures;
-    }
-
-    renderScene() {
-        if (this.rgbd_target != null && this.rgbd_target.isReadyForRendering()) {
-            //this.rgbd_target.render();
-        }
     }
 }
 

@@ -138,7 +138,7 @@ function createScene(render_type) {
         cdep_compute.synthesizeView(view_params);
 
         // Update textures on model
-        let textures = cdep_compute.getRgbdBuffer();
+        let textures = cdep_compute.getRgbdTextures();
         cdep_mat.emissiveTexture = textures[0];
     })
     // .then((data) => {

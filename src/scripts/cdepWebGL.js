@@ -22,6 +22,10 @@ uniform float depth_hint;
 uniform vec3 cam_position;
 uniform float cam_ipd;
 uniform float cam_focal_dist;
+uniform float use_xr;
+uniform float xr_fovy;
+uniform float xr_aspect;
+uniform vec3 xr_view_dir;
 uniform mat4 projection;
 uniform sampler2D depths;
 
@@ -74,6 +78,16 @@ void main() {
                         (1.0 - 0.5 * sign(proj_sphere_pt.z)) * M_PI :
                         mod(atan(proj_sphere_pt.y, proj_sphere_pt.x), 2.0 * M_PI);
     float out_inclination = acos(proj_sphere_pt.z / cam_focal_dist);
+
+    // Check if point is visible (XR only)
+    float diag_aspect = sqrt(xr_aspect * xr_aspect + 1.0);
+    float vertical_fov = 0.5 * xr_fovy + 0.005;
+    float diagonal_fov = atan(tan(vertical_fov) * diag_aspect);
+    vec3 point_dir = normalize(proj_sphere_pt.yzx);
+    // discard point (move outside view volume) if angle between point direction and view diretion > diagonal FOV
+    float discard_offset = dot(point_dir, xr_view_dir) >= cos(diagonal_fov) ? 0.0 : 10.0;
+    out_azimuth -= discard_offset;
+    //out_azimuth -= use_xr * float(dot(point_dir, xr_view_dir) < cos(diagonal_fov)) * 10.0;
 
     // Project to multiple pixels
     float dims_y = float(textureSize(depths, 0).y);
@@ -140,7 +154,8 @@ class CdepWebGL extends CdepAbstract {
             },
             {
                 attributes: ['position', 'uv'],
-                uniforms: ['projection', 'cam_position', 'cam_ipd', 'cam_focal_dist', 'depth_hint'],
+                uniforms: ['projection', 'cam_position', 'cam_ipd', 'cam_focal_dist', 'depth_hint',
+                           'use_xr', 'xf_fovy', 'xr_aspect', 'xr_view_dir'],
                 samplers: ['image', 'depths']
             }
         );
@@ -238,6 +253,9 @@ class CdepWebGL extends CdepAbstract {
         // Render each image
         let i;
         let depth_hint = 0.0;
+        let use_xr = (view_params.hasOwnProperty('xr_fovy') &&
+                      view_params.hasOwnProperty('xr_aspect') &&
+                      view_params.hasOwnProperty('xr_view_dir')) ? 1.0 : 0.0;
         let views = this.determineViews(view_params.synthesized_position, view_params.max_views);
         this.rgbd_target.renderList = [];
         for (i = 0; i < views.length; i++) {
@@ -248,6 +266,12 @@ class CdepWebGL extends CdepAbstract {
             this.cdep_materials[idx].setFloat('cam_ipd', view_params.ipd);
             this.cdep_materials[idx].setFloat('cam_focal_dist', view_params.focal_dist);
             this.cdep_materials[idx].setFloat('depth_hint', depth_hint);
+            this.cdep_materials[idx].setFloat('use_xr', use_xr);
+            if (use_xr > 0.0) {
+                this.cdep_materials[idx].setFloat('xr_fovy', view_params.xr_fovy * Math.PI / 180.0);
+                this.cdep_materials[idx].setFloat('xr_aspect', view_params.xr_aspect);
+                this.cdep_materials[idx].setVector3('xr_view_dir', view_params.xr_view_dir);
+            }
             depth_hint += 0.015;
         }
 

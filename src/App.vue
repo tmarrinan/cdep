@@ -191,7 +191,7 @@ function createScene(render_type) {
 onMounted(async () => {
     babylon.canvas = document.getElementById('gpu-canvas');
 
-    let force_gl = false;
+    let force_gl = true;
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {
@@ -210,6 +210,15 @@ onMounted(async () => {
     }
     else {
         const gl2 = babylon.canvas.getContext('webgl2');
+
+        // Laptops w/ integrated + discrete GPU: must use settings to 
+        // force browser to use high performance GPU
+        const debug_info = gl2.getExtension("WEBGL_debug_renderer_info");
+        const vendor = gl2.getParameter(debug_info.UNMASKED_VENDOR_WEBGL);
+        const renderer = gl2.getParameter(debug_info.UNMASKED_RENDERER_WEBGL);
+        console.log(vendor);
+        console.log(renderer);
+
         babylon.engine = new Engine(gl2);
         createScene('WebGL');
     }

@@ -4,6 +4,7 @@ import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Ray } from '@babylonjs/core/Culling/ray';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
@@ -43,9 +44,11 @@ function createScene(render_type) {
     babylon.scene.clearColor = new Color3(0.1, 0.1, 0.1);
 
     // Create a camera
-    babylon.camera = new ArcRotateCamera('camera', -Math.PI / 2.0,  3.0 * Math.PI / 8.0, 10.0, 
-                                         new Vector3(0.0, 2.5, 0.0), babylon.scene);
-    babylon.camera.wheelPrecision = 30;
+    // babylon.camera = new ArcRotateCamera('camera', -Math.PI / 2.0,  3.0 * Math.PI / 8.0, 10.0, 
+    //                                      new Vector3(0.0, 2.5, 0.0), babylon.scene);
+    // babylon.camera.wheelPrecision = 30;
+    babylon.camera = new UniversalCamera('camera', new Vector3(0.0, 0.0, 0.0), babylon.scene)
+    babylon.camera.speed = 0.1;
     babylon.camera.attachControl(babylon.canvas, true);
     
     // Create a light
@@ -53,14 +56,14 @@ function createScene(render_type) {
     light.intensity = 1.0;
 
     // Create a plane
-    const cdep_mat = new StandardMaterial('cdep_mat');
-    cdep_mat.diffuseColor = new Color3(0.0, 0.0, 0.0);
-    cdep_mat.specularColor = new Color3(0.0, 0.0, 0.0);
-    cdep_mat.emissiveColor = new Color3(0.0, 0.0, 0.0);
+    // const cdep_mat = new StandardMaterial('cdep_mat');
+    // cdep_mat.diffuseColor = new Color3(0.0, 0.0, 0.0);
+    // cdep_mat.specularColor = new Color3(0.0, 0.0, 0.0);
+    // cdep_mat.emissiveColor = new Color3(0.0, 0.0, 0.0);
 
-    const plane = CreatePlane('plane', {width: 5, height: 5}, babylon.scene);
-    plane.material = cdep_mat;
-    plane.position.y = 2.5;
+    // const plane = CreatePlane('plane', {width: 5, height: 5}, babylon.scene);
+    // plane.material = cdep_mat;
+    // plane.position.y = 2.5;
 
     // Create photo dome for 360 panoramas
     const photo_dome = new PhotoDome('pano360', BASE_URL + 'images/photodome_start.png',
@@ -70,10 +73,10 @@ function createScene(render_type) {
     photo_dome.scaling.y = -1.0;
 
     // Create a 'ground'
-    const grid_mat = new GridMaterial('grid', babylon.scene);
+    // const grid_mat = new GridMaterial('grid', babylon.scene);
 
-    const ground = CreateGround('ground', { width: 5, height: 5, subdivisions: 2 }, babylon.scene);
-    ground.material = grid_mat;
+    // const ground = CreateGround('ground', { width: 5, height: 5, subdivisions: 2 }, babylon.scene);
+    // ground.material = grid_mat;
 
     // C-DEP WebGPU
     let cdep_compute = (render_type === 'WebGPU') ? new CdepWebGPU(babylon.scene, babylon.engine) :
@@ -138,25 +141,26 @@ function createScene(render_type) {
 
         if (cdep_compute.isReady()) {
             // Synthesize new view
+            let camera_data = babylon.camera.getForwardRay();
             let center_pos = new Vector3(0.0, 1.70, 0.725);
-            let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(time), 0.1425 * Math.sin(time));
+            //let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(time), 0.1425 * Math.sin(time));
+            let animation_pos = new Vector3(camera_data.origin.x, camera_data.origin.y, -camera_data.origin.z);
 
             let view_params = {
                 synthesized_position: center_pos.add(animation_pos),
-                //synthesized_position: center_pos,
-                max_views: 3,
+                max_views: 8,
                 ipd: 0.065,
                 focal_dist: 1.95,
                 z_max: 12.0,
                 xr_fovy: 75.0,
                 xr_aspect: 1.0,
-                xr_view_dir: new Vector3(0.0, 0.0, -1.0)
+                xr_view_dir: new Vector3(camera_data.direction.x, camera_data.direction.y, -camera_data.direction.z)
             };
             cdep_compute.synthesizeView(view_params);
 
             // Update textures on model
             let textures = cdep_compute.getRgbdTextures();
-            cdep_mat.emissiveTexture = textures[0];
+            //cdep_mat.emissiveTexture = textures[0];
             photo_dome.texture = textures[0];
         }
 
@@ -174,7 +178,7 @@ function createScene(render_type) {
 onMounted(async () => {
     babylon.canvas = document.getElementById('gpu-canvas');
 
-    let force_gl = true;
+    let force_gl = false;
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {

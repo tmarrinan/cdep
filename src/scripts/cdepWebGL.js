@@ -31,6 +31,8 @@ in vec2 uv;
 out vec2 texcoord;
 out float pt_depth;
 
+float sphericalPixelSize(float inclination, float dims_y);
+
 void main() {
     // Calculate projected point position (relative to projection sphere center)
     float in_azimuth = position.x;
@@ -74,9 +76,16 @@ void main() {
     float out_inclination = acos(proj_sphere_pt.z / cam_focal_dist);
 
     // Project to multiple pixels
-    float size_ratio = in_depth / camera_distance;
-    float size_scale = max(size_ratio, 1.0);
-    gl_PointSize = size_scale;
+    float dims_y = float(textureSize(depths, 0).y);
+    float in_area = sphericalPixelSize(in_inclination, dims_y);
+    float out_area = sphericalPixelSize(out_inclination, dims_y);
+    float sphere_area_ratio = in_area / out_area;
+    float distance_ratio = in_depth / camera_distance;
+    float size_ratio = clamp(sphere_area_ratio * distance_ratio, 1.0, 7.0);
+
+    //float size_ratio = clamp(in_depth / camera_distance, 1.0, 7.0);
+    
+    gl_PointSize = size_ratio;
 
     // Set point position
     float stereo_offset_y = (1.0 - (0.5 * (cam_eye + 1.0))) * M_PI;
@@ -84,6 +93,14 @@ void main() {
 
     texcoord = uv;
     pt_depth = camera_distance;
+}
+
+float sphericalPixelSize(float inclination, float dims_y) {
+    float latitude = inclination - (0.5 * M_PI);
+    float delta_lat = 0.5 * M_PI / dims_y;
+    float lat1 = latitude - delta_lat;
+    float lat2 = latitude + delta_lat;
+    return sin(lat2) - sin(lat1);
 }
 `;
 

@@ -188,7 +188,7 @@ function createScene(render_type) {
 onMounted(async () => {
     babylon.canvas = document.getElementById('gpu-canvas');
 
-    let force_gl = false;
+    let force_gl = true;
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {

@@ -101,10 +101,10 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         let out_inclination_r : f32 = acos(proj_sphere_pt_r.z / params.camera_focal_dist);
 
         // Write pixel and depth to output textures
-        let out_x_l : u32 = u32(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_l) / (2.0 * M_PI));
-        let out_y_l : u32 = u32(f32(dims.y) * (out_inclination_l / M_PI));
-        let out_x_r : u32 = u32(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_r) / (2.0 * M_PI));
-        let out_y_r : u32 = u32(f32(dims.y) * (out_inclination_r / M_PI)) + dims.y;
+        let out_x_l : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_l) / (2.0 * M_PI)));
+        let out_y_l : u32 = u32(round(f32(dims.y) * (out_inclination_l / M_PI)));
+        let out_x_r : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_r) / (2.0 * M_PI)));
+        let out_y_r : u32 = u32(round(f32(dims.y) * (out_inclination_r / M_PI))) + dims.y;
 
         let color : vec4<f32> = textureLoad(image, global_id.xy, 0u);
         
@@ -114,11 +114,15 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         let rgbd_r : u32 = packRgb776d12(color.rgb, dist_norm_r);
 
         // multiple pixels
-        //let size_ratio_l : f32 = max(round(in_depth / camera_distance_l), 1.0);
         let dims_y : f32 = f32(dims.y);
-        let sphere_area_ratio : f32 = pixelSphereArea(in_inclination, dims_y) / pixelSphereArea(out_inclination_l, dims_y);
-        let distance_ratio : f32 = in_depth / camera_distance_l;
-        let size_ratio_l : f32 = round(clamp(sphere_area_ratio * distance_ratio, 1.0, 9.0));
+        let in_area : f32 = sphericalPixelSize(in_inclination, dims_y);
+
+        let sphere_area_ratio_l : f32 = in_area / sphericalPixelSize(out_inclination_l, dims_y);
+        let distance_ratio_l : f32 = in_depth / camera_distance_l;
+        let size_ratio_l : f32 = round(clamp(sphere_area_ratio_l * distance_ratio_l, 1.0, 7.0));
+
+        //let size_ratio_l : f32 = max(round(in_depth / camera_distance_l), 1.0);
+
         let px_start_l : i32 = i32(floor(0.5 * size_ratio_l));
         let px_end_l : i32 = i32(ceil(0.5 * size_ratio_l));
         for (var j : i32 = -px_start_l; j < px_end_l; j++) {
@@ -135,7 +139,12 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         }
 
         // multiple pixels
-        let size_ratio_r : f32 = max(round(in_depth / camera_distance_r), 1.0);
+        let sphere_area_ratio_r : f32 = in_area / sphericalPixelSize(out_inclination_r, dims_y);
+        let distance_ratio_r : f32 = in_depth / camera_distance_r;
+        let size_ratio_r : f32 = round(clamp(sphere_area_ratio_r * distance_ratio_r, 1.0, 7.0));
+
+        //let size_ratio_r : f32 = max(round(in_depth / camera_distance_r), 1.0);
+        
         let px_start_r : i32 = i32(floor(0.5 * size_ratio_r));
         let px_end_r : i32 = i32(ceil(0.5 * size_ratio_r));
         for (var j : i32 = -px_start_r; j < px_end_r; j++) {
@@ -165,7 +174,7 @@ fn packRgb776d12(rgb : vec3<f32>, depth : f32) -> u32 {
     return ((d12 & 0xFFF) << 20) | ((b6 & 0x3F) << 14) | ((g7 & 0x7F) << 7) | (r7 & 0x7F);
 }
 
-fn pixelSphereArea(inclination : f32, dims_y : f32) -> f32 {
+fn sphericalPixelSize(inclination : f32, dims_y : f32) -> f32 {
     let latitude : f32 = inclination - (0.5 * M_PI);
     let delta_lat : f32 = 0.5 * M_PI / dims_y;
     let lat1 : f32 = latitude - delta_lat;

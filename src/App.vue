@@ -165,7 +165,10 @@ function createScene(render_type) {
                 max_views: 3,
                 ipd: 0.065,
                 focal_dist: 1.95,
-                z_max: 12.0
+                z_max: 12.0,
+                xr_fovy: 75.0,
+                xr_aspect: 1.0,
+                xr_view_dir: new Vector3(0.0, 0.0, -1.0)
             };
             cdep_compute.synthesizeView(view_params);
 
@@ -188,7 +191,7 @@ function createScene(render_type) {
 onMounted(async () => {
     babylon.canvas = document.getElementById('gpu-canvas');
 
-    let force_gl = true;
+    let force_gl = false;
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {

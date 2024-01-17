@@ -31,7 +31,11 @@ struct Params {
     camera_ipd : f32,
     camera_focal_dist : f32,
     z_max : f32,
-    depth_hint : f32
+    depth_hint : f32,
+    use_xr : u32,
+    xr_fovy : f32,
+    xr_aspect: f32,
+    xr_view_dir : vec3<f32>
 };
 
 @group(0) @binding(0) var<uniform> params : Params;
@@ -100,65 +104,145 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
                                             (abs(proj_sphere_pt_r.x) < EPSILON && abs(proj_sphere_pt_r.y) < EPSILON));
         let out_inclination_r : f32 = acos(proj_sphere_pt_r.z / params.camera_focal_dist);
 
+        // Check if point is visible (XR only)
+        var visible_l : bool = true;
+        var visible_r : bool = true;
+        if (params.use_xr != 0) {
+            let diag_aspect : f32 = sqrt(params.xr_aspect * params.xr_aspect + 1.0);
+            let vertical_fov : f32 = 0.5 * params.xr_fovy + 0.005;
+            let diagonal_fov : f32 = atan(tan(vertical_fov) * diag_aspect);
+            let point_dir_l : vec3<f32> = normalize(proj_sphere_pt_l.yzx);
+            visible_l = dot(point_dir_l, params.xr_view_dir) >= cos(diagonal_fov);
+            let point_dir_r : vec3<f32> = normalize(proj_sphere_pt_r.yzx);
+            visible_r = dot(point_dir_r, params.xr_view_dir) >= cos(diagonal_fov);
+        }
+
         // Write pixel and depth to output textures
-        let out_x_l : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_l) / (2.0 * M_PI)));
-        let out_y_l : u32 = u32(round(f32(dims.y) * (out_inclination_l / M_PI)));
-        let out_x_r : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_r) / (2.0 * M_PI)));
-        let out_y_r : u32 = u32(round(f32(dims.y) * (out_inclination_r / M_PI))) + dims.y;
-
         let color : vec4<f32> = textureLoad(image, global_id.xy, 0u);
-        
-        let dist_norm_l = (camera_distance_l + params.depth_hint) / params.z_max;
-        let rgbd_l : u32 = packRgb776d12(color.rgb, dist_norm_l);
-        let dist_norm_r = (camera_distance_r + params.depth_hint) / params.z_max;
-        let rgbd_r : u32 = packRgb776d12(color.rgb, dist_norm_r);
-
-        // multiple pixels
         let dims_y : f32 = f32(dims.y);
         let in_area : f32 = sphericalPixelSize(in_inclination, dims_y);
 
-        let sphere_area_ratio_l : f32 = in_area / sphericalPixelSize(out_inclination_l, dims_y);
-        let distance_ratio_l : f32 = in_depth / camera_distance_l;
-        let size_ratio_l : f32 = round(clamp(sphere_area_ratio_l * distance_ratio_l, 1.0, 7.0));
+        if (visible_l) {
+            // pixel position
+            let out_x_l : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_l) / (2.0 * M_PI)));
+            let out_y_l : u32 = u32(round(f32(dims.y) * (out_inclination_l / M_PI)));
 
-        //let size_ratio_l : f32 = max(round(in_depth / camera_distance_l), 1.0);
+            // pack RGB-D into uint32
+            let dist_norm_l = (camera_distance_l + params.depth_hint) / params.z_max;
+            let rgbd_l : u32 = packRgb776d12(color.rgb, dist_norm_l);
 
-        let px_start_l : i32 = i32(floor(0.5 * size_ratio_l));
-        let px_end_l : i32 = i32(ceil(0.5 * size_ratio_l));
-        for (var j : i32 = -px_start_l; j < px_end_l; j++) {
-            let f_y : i32 = i32(out_y_l) + j;
-            if (f_y >= 0 && f_y < i32(dims.y)) {
-                for (var i : i32 = -px_start_l; i <= px_end_l; i++) {
-                    let f_x : i32 = i32(out_x_l) + i;
-                    if (f_x >= 0 && f_x < i32(dims.x)) {
-                        let pix_idx_l : u32 = u32(f_y) * dims.x  + u32(f_x);
-                        atomicMin(&out_rgbd[pix_idx_l], rgbd_l);
+            // size of point (potentially multiple pixels)
+            let sphere_area_ratio_l : f32 = in_area / sphericalPixelSize(out_inclination_l, dims_y);
+            let distance_ratio_l : f32 = in_depth / camera_distance_l;
+            let size_ratio_l : f32 = round(clamp(sphere_area_ratio_l * distance_ratio_l, 1.0, 7.0));
+
+            // write RGB-D data to output buffer
+            let px_start_l : i32 = i32(floor(0.5 * size_ratio_l));
+            let px_end_l : i32 = i32(ceil(0.5 * size_ratio_l));
+            for (var j : i32 = -px_start_l; j < px_end_l; j++) {
+                let f_y : i32 = i32(out_y_l) + j;
+                if (f_y >= 0 && f_y < i32(dims.y)) {
+                    for (var i : i32 = -px_start_l; i <= px_end_l; i++) {
+                        let f_x : i32 = i32(out_x_l) + i;
+                        if (f_x >= 0 && f_x < i32(dims.x)) {
+                            let pix_idx_l : u32 = u32(f_y) * dims.x  + u32(f_x);
+                            atomicMin(&out_rgbd[pix_idx_l], rgbd_l);
+                        }
                     }
                 }
             }
         }
 
-        // multiple pixels
-        let sphere_area_ratio_r : f32 = in_area / sphericalPixelSize(out_inclination_r, dims_y);
-        let distance_ratio_r : f32 = in_depth / camera_distance_r;
-        let size_ratio_r : f32 = round(clamp(sphere_area_ratio_r * distance_ratio_r, 1.0, 7.0));
+        if (visible_r) {
+            // pixel position
+            let out_x_r : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_r) / (2.0 * M_PI)));
+            let out_y_r : u32 = u32(round(f32(dims.y) * (out_inclination_r / M_PI))) + dims.y;
 
-        //let size_ratio_r : f32 = max(round(in_depth / camera_distance_r), 1.0);
+            // pack RGB-D into uint32
+            let dist_norm_r = (camera_distance_r + params.depth_hint) / params.z_max;
+            let rgbd_r : u32 = packRgb776d12(color.rgb, dist_norm_r);
+
+            // size of point (potentially multiple pixels)
+            let sphere_area_ratio_r : f32 = in_area / sphericalPixelSize(out_inclination_r, dims_y);
+            let distance_ratio_r : f32 = in_depth / camera_distance_r;
+            let size_ratio_r : f32 = round(clamp(sphere_area_ratio_r * distance_ratio_r, 1.0, 7.0));
+
+            // write RGB-D data to output buffer
+            let px_start_r : i32 = i32(floor(0.5 * size_ratio_r));
+            let px_end_r : i32 = i32(ceil(0.5 * size_ratio_r));
+            for (var j : i32 = -px_start_r; j < px_end_r; j++) {
+                let f_y : i32 = i32(out_y_r) + j;
+                if (f_y >= i32(dims.y) && f_y < 2 * i32(dims.y)) {
+                    for (var i : i32 = -px_start_r; i <= px_end_r; i++) {
+                        let f_x : i32 = i32(out_x_r) + i;
+                        if (f_x >= 0 && f_x < i32(dims.x)) {
+                            let pix_idx_r : u32 = u32(f_y) * dims.x  + u32(f_x);
+                            atomicMin(&out_rgbd[pix_idx_r], rgbd_r);
+                        }
+                    }
+                }
+            }
+        }
         
-        let px_start_r : i32 = i32(floor(0.5 * size_ratio_r));
-        let px_end_r : i32 = i32(ceil(0.5 * size_ratio_r));
-        for (var j : i32 = -px_start_r; j < px_end_r; j++) {
-            let f_y : i32 = i32(out_y_r) + j;
-            if (f_y >= i32(dims.y) && f_y < 2 * i32(dims.y)) {
-                for (var i : i32 = -px_start_r; i <= px_end_r; i++) {
-                    let f_x : i32 = i32(out_x_r) + i;
-                    if (f_x >= 0 && f_x < i32(dims.x)) {
-                        let pix_idx_r : u32 = u32(f_y) * dims.x  + u32(f_x);
-                        atomicMin(&out_rgbd[pix_idx_r], rgbd_r);
-                    }
-                }
-            }
-        }
+        
+        // let out_x_l : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_l) / (2.0 * M_PI)));
+        // let out_y_l : u32 = u32(round(f32(dims.y) * (out_inclination_l / M_PI)));
+        // let out_x_r : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_r) / (2.0 * M_PI)));
+        // let out_y_r : u32 = u32(round(f32(dims.y) * (out_inclination_r / M_PI))) + dims.y;
+
+        // let color : vec4<f32> = textureLoad(image, global_id.xy, 0u);
+        
+        // let dist_norm_l = (camera_distance_l + params.depth_hint) / params.z_max;
+        // let rgbd_l : u32 = packRgb776d12(color.rgb, dist_norm_l);
+        // let dist_norm_r = (camera_distance_r + params.depth_hint) / params.z_max;
+        // let rgbd_r : u32 = packRgb776d12(color.rgb, dist_norm_r);
+
+        // // multiple pixels
+        // let dims_y : f32 = f32(dims.y);
+        // let in_area : f32 = sphericalPixelSize(in_inclination, dims_y);
+
+        // let sphere_area_ratio_l : f32 = in_area / sphericalPixelSize(out_inclination_l, dims_y);
+        // let distance_ratio_l : f32 = in_depth / camera_distance_l;
+        // let size_ratio_l : f32 = round(clamp(sphere_area_ratio_l * distance_ratio_l, 1.0, 7.0));
+
+        // //let size_ratio_l : f32 = max(round(in_depth / camera_distance_l), 1.0);
+
+        // let px_start_l : i32 = i32(floor(0.5 * size_ratio_l));
+        // let px_end_l : i32 = i32(ceil(0.5 * size_ratio_l));
+        // for (var j : i32 = -px_start_l; j < px_end_l; j++) {
+        //     let f_y : i32 = i32(out_y_l) + j;
+        //     if (f_y >= 0 && f_y < i32(dims.y)) {
+        //         for (var i : i32 = -px_start_l; i <= px_end_l; i++) {
+        //             let f_x : i32 = i32(out_x_l) + i;
+        //             if (f_x >= 0 && f_x < i32(dims.x)) {
+        //                 let pix_idx_l : u32 = u32(f_y) * dims.x  + u32(f_x);
+        //                 atomicMin(&out_rgbd[pix_idx_l], rgbd_l);
+        //             }
+        //         }
+        //     }
+        // }
+
+        // // multiple pixels
+        // let sphere_area_ratio_r : f32 = in_area / sphericalPixelSize(out_inclination_r, dims_y);
+        // let distance_ratio_r : f32 = in_depth / camera_distance_r;
+        // let size_ratio_r : f32 = round(clamp(sphere_area_ratio_r * distance_ratio_r, 1.0, 7.0));
+
+        // //let size_ratio_r : f32 = max(round(in_depth / camera_distance_r), 1.0);
+        
+        // let px_start_r : i32 = i32(floor(0.5 * size_ratio_r));
+        // let px_end_r : i32 = i32(ceil(0.5 * size_ratio_r));
+        // for (var j : i32 = -px_start_r; j < px_end_r; j++) {
+        //     let f_y : i32 = i32(out_y_r) + j;
+        //     if (f_y >= i32(dims.y) && f_y < 2 * i32(dims.y)) {
+        //         for (var i : i32 = -px_start_r; i <= px_end_r; i++) {
+        //             let f_x : i32 = i32(out_x_r) + i;
+        //             if (f_x >= 0 && f_x < i32(dims.x)) {
+        //                 let pix_idx_r : u32 = u32(f_y) * dims.x  + u32(f_x);
+        //                 atomicMin(&out_rgbd[pix_idx_r], rgbd_r);
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
 
@@ -258,6 +342,10 @@ class CdepWebGPU extends CdepAbstract {
         this.params.addUniform('camera_focal_dist', 1);
         this.params.addUniform('z_max', 1);
         this.params.addUniform('depth_hint', 1);
+        this.params.addUniform('use_xr', 1);
+        this.params.addUniform('xr_fovy', 1);
+        this.params.addUniform('xr_aspect', 1);
+        this.params.addUniform('xr_view_dir', 3);
 
         this.tex_params = new UniformBuffer(this.engine, undefined, false, 'rgba_to_texture_buffer');
         this.tex_params.addUniform('dims', 2);
@@ -298,6 +386,9 @@ class CdepWebGPU extends CdepAbstract {
 
         // Synthesize view
         let depth_hint = 0.0;
+        let use_xr = (view_params.hasOwnProperty('xr_fovy') &&
+                      view_params.hasOwnProperty('xr_aspect') &&
+                      view_params.hasOwnProperty('xr_view_dir')) ? 1 : 0;
         let views = this.determineViews(view_params.synthesized_position, view_params.max_views);
         for (let i = 0; i < views.length; i++) {
             let idx = views[i];
@@ -310,6 +401,12 @@ class CdepWebGPU extends CdepAbstract {
             this.params.updateFloat('camera_focal_dist', view_params.focal_dist);
             this.params.updateFloat('z_max', view_params.z_max);
             this.params.updateFloat('depth_hint', depth_hint);
+            this.params.updateUInt('use_xr', use_xr);
+            if (use_xr > 0) {
+                this.params.updateFloat('xr_fovy', view_params.xr_fovy * Math.PI / 180.0);
+                this.params.updateFloat('xr_aspect', view_params.xr_aspect);
+                this.params.updateVector3('xr_view_dir', view_params.xr_view_dir);
+            }
             this.params.update();
             this.cdep_cs.setUniformBuffer('params', this.params);
             this.cdep_cs.dispatch(n_groups_x, n_groups_y, 1);

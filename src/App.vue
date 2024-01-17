@@ -21,6 +21,7 @@ import { CdepWebGL } from './scripts/cdepWebGL';
 import * as WEBGPU_EXT from '@babylonjs/core/Engines/WebGPU/Extensions/index.js';
 
 import { reactive, ref, onMounted } from 'vue'
+import { MaterialSheenDefines } from '@babylonjs/core/Materials/PBR/pbrSheenConfiguration';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
 
@@ -48,13 +49,6 @@ function createScene(render_type) {
                                          new Vector3(0.0, 2.5, 0.0), babylon.scene);
     babylon.camera.wheelPrecision = 30;
     babylon.camera.attachControl(babylon.canvas, true);
-
-    // babylon.camera = new UniversalCamera('ortho_camera', new Vector3(0.0, 0.0, 0.0), babylon.scene);
-    // babylon.camera.mode = Constants.ORTHOGRAPHIC_CAMERA;
-    // babylon.camera.orthoLeft = 2.0 * Math.PI;
-    // babylon.camera.orthoRight = 0.0;
-    // babylon.camera.orthoBottom = Math.PI;
-    // babylon.camera.orthoTop = 0.0;
     
     // Create a light
     const light = new HemisphericLight('light', new Vector3(0, 1, 0), babylon.scene);
@@ -122,55 +116,32 @@ function createScene(render_type) {
         }
     ];
 
-    let image_size = null;
     cdep_compute.initializePanoramaCollection(panoramas)
     .then((image_dims) => {
-        // Save image size
-        image_size = image_dims;
+        console.log('C-DEP initialized');
+        // // Synthesize new view
+        // let view_params = {
+        //     synthesized_position: new Vector3(0.0, 1.70, 0.725),
+        //     max_views: 3,
+        //     ipd: 0.065,
+        //     focal_dist: 1.95,
+        //     z_max: 12.0
+        // };
+        // start_time = performance.now();
+        // //for (let i = 0; i < 2; i++) {
+        //     cdep_compute.synthesizeView(view_params);
+        // //}
 
-        // Synthesize new view
-        let view_params = {
-            synthesized_position: new Vector3(0.0, 1.70, 0.725),
-            ipd: 0.065,
-            focal_dist: 1.95,
-            z_max: 12.0
-        };
-        cdep_compute.synthesizeView(view_params);
+        // // Update textures on model
+        // let textures = cdep_compute.getRgbdTextures();
+        // cdep_mat.emissiveTexture = textures[0];
 
-        // Update textures on model
-        let textures = cdep_compute.getRgbdTextures();
-        cdep_mat.emissiveTexture = textures[0];
+        // return textures[0].readPixels();
     })
-    // .then((data) => {
-    //         if (render_type === 'WebGPU') {
-    //         //let end = performance.now();
-    //         //console.log('compute:', ((end - start) / num_comp).toFixed(1) + 'ms');
-    //         let out_data = new Uint32Array(data.buffer);
-    //         let out_depths = new Float32Array(out_data.length);
-    //         let out_colors = new Uint8Array(out_data.length * 4);
-    //         for (let i = 0; i < out_data.length; i++) {
-    //             let depth = (out_data[i] >> 20) & 0xFFF;
-    //             let blue = (out_data[i] >> 14) & 0x3F;
-    //             let green = (out_data[i] >> 7) & 0x7F;
-    //             let red = out_data[i] & 0x7F;
-    //             out_depths[i] =  depth / 4095.0;
-    //             out_colors[4 * i + 0] = (red / 128.0) * 255.0;
-    //             out_colors[4 * i + 1] = (green / 128.0) * 255.0;
-    //             out_colors[4 * i + 2] = (blue / 64.0) * 255.0;
-    //             out_colors[4 * i + 3] = 255;
-    //         }
-    //         const out_image_texture = new RawTexture(out_colors, image_size.width, image_size.height * 2, 
-    //                                                 Constants.TEXTUREFORMAT_RGBA, babylon.scene, false, true,
-    //                                                 Constants.BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_UNSIGNED_BYTE);
-    //         const out_depth_texture = new RawTexture(out_depths, image_size.width, image_size.height * 2, 
-    //                                                 Constants.TEXTUREFORMAT_R, babylon.scene, false, true,
-    //                                                 Constants.BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_FLOAT);
-    //         cdep_mat.emissiveTexture = out_image_texture;
-    //         //cdep_mat.emissiveTexture = out_depth_texture;
-    //     }
-    //     else {
-    //         cdep_mat.emissiveTexture = data[0];
-    //     }
+    // .then((pixels) => {
+    //     console.log(pixels[2048 * 2048 + 512], pixels[2048 * 2048 + 513], pixels[2048 * 2048 + 514]);
+    //     let end_time = performance.now();
+    //     console.log('Time: ' + ((end_time - start_time) / 2).toFixed(1) + 'ms');
     // })
     .catch((error) => {
         console.log(error);
@@ -178,20 +149,38 @@ function createScene(render_type) {
 
     
     // Render every frame
-    let frame = 0;
+    let start = performance.now();
+    let time = 0.0;
     babylon.engine.runRenderLoop(() => {
-        // if (cdep_compute.rgbd_target !== null && cdep_compute.rgbd_buffer !== null) {
-        //     let view_params = {
-        //         synthesized_position: new Vector3(0.0, 1.70, 0.725),
-        //         ipd: 0.065,
-        //         focal_dist: 1.95,
-        //         z_max: 12.0
-        //     };
-        //     cdep_compute.synthesizeView(view_params);
-        // }
+        time += (babylon.engine.getDeltaTime() / 1000.0);
+
+        if (cdep_compute.isReady()) {
+            // Synthesize new view
+            let center_pos = new Vector3(0.0, 1.70, 0.725);
+            let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(time), 0.1425 * Math.sin(time));
+
+            let view_params = {
+                synthesized_position: center_pos.add(animation_pos),
+                //synthesized_position: center_pos,
+                max_views: 3,
+                ipd: 0.065,
+                focal_dist: 1.95,
+                z_max: 12.0
+            };
+            cdep_compute.synthesizeView(view_params);
+
+            // Update textures on model
+            let textures = cdep_compute.getRgbdTextures();
+            cdep_mat.emissiveTexture = textures[0];
+        }
 
         babylon.scene.render();
-        frame++;
+
+        let now = performance.now();
+        if ((now - start) >= 2000.0) {
+            console.log(babylon.engine.getFps().toFixed(1) + ' fps');
+            start = now;
+        }
     });
 }
 
@@ -203,8 +192,9 @@ onMounted(async () => {
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {
-        babylon.engine = new WebGPUEngine(babylon.canvas);
+        babylon.engine = new WebGPUEngine(babylon.canvas, {deviceDescriptor: {requiredFeatures: ['timestamp-query']}});
         await babylon.engine.initAsync();
+        console.log(babylon.engine.enabledExtensions);
 
         if (babylon.engine.getCaps().supportComputeShaders) {
             createScene('WebGPU');

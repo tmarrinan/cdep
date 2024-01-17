@@ -114,8 +114,12 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         let rgbd_r : u32 = packRgb776d12(color.rgb, dist_norm_r);
 
         // multiple pixels
-        let size_ratio_l : f32 = max(round(in_depth / camera_distance_l), 1.0);
-        let px_start_l :i32 = i32(floor(0.5 * size_ratio_l));
+        //let size_ratio_l : f32 = max(round(in_depth / camera_distance_l), 1.0);
+        let dims_y : f32 = f32(dims.y);
+        let sphere_area_ratio : f32 = pixelSphereArea(in_inclination, dims_y) / pixelSphereArea(out_inclination_l, dims_y);
+        let distance_ratio : f32 = in_depth / camera_distance_l;
+        let size_ratio_l : f32 = round(clamp(sphere_area_ratio * distance_ratio, 1.0, 9.0));
+        let px_start_l : i32 = i32(floor(0.5 * size_ratio_l));
         let px_end_l : i32 = i32(ceil(0.5 * size_ratio_l));
         for (var j : i32 = -px_start_l; j < px_end_l; j++) {
             let f_y : i32 = i32(out_y_l) + j;
@@ -132,7 +136,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
 
         // multiple pixels
         let size_ratio_r : f32 = max(round(in_depth / camera_distance_r), 1.0);
-        let px_start_r :i32 = i32(floor(0.5 * size_ratio_r));
+        let px_start_r : i32 = i32(floor(0.5 * size_ratio_r));
         let px_end_r : i32 = i32(ceil(0.5 * size_ratio_r));
         for (var j : i32 = -px_start_r; j < px_end_r; j++) {
             let f_y : i32 = i32(out_y_r) + j;
@@ -154,11 +158,19 @@ fn fmod(num : f32, div : f32) -> f32 {
 }
 
 fn packRgb776d12(rgb : vec3<f32>, depth : f32) -> u32 {
-    let r7 = u32(rgb.r * 127.0);
-    let g7 = u32(rgb.g * 127.0);
-    let b6 = u32(rgb.b * 63.0);
-    let d12 = u32(depth * 4095.0);
+    let r7 : u32 = u32(rgb.r * 127.0);
+    let g7 : u32 = u32(rgb.g * 127.0);
+    let b6 : u32 = u32(rgb.b * 63.0);
+    let d12 : u32 = u32(depth * 4095.0);
     return ((d12 & 0xFFF) << 20) | ((b6 & 0x3F) << 14) | ((g7 & 0x7F) << 7) | (r7 & 0x7F);
+}
+
+fn pixelSphereArea(inclination : f32, dims_y : f32) -> f32 {
+    let latitude : f32 = inclination - (0.5 * M_PI);
+    let delta_lat : f32 = 0.5 * M_PI / dims_y;
+    let lat1 : f32 = latitude - delta_lat;
+    let lat2 : f32 = latitude + delta_lat;
+    return sin(lat2) - sin(lat1);
 }
 `;
 
@@ -277,11 +289,13 @@ class CdepWebGPU extends CdepAbstract {
 
         // Synthesize view
         let depth_hint = 0.0;
-        for (let i = 0; i < this.num_images; i++) {
-            this.cdep_cs.setTexture('image', this.rgba_textures[i], false);
-            this.cdep_cs.setTexture('depths', this.depth_textures[i], false);
+        let views = this.determineViews(view_params.synthesized_position, view_params.max_views);
+        for (let i = 0; i < views.length; i++) {
+            let idx = views[i];
+            this.cdep_cs.setTexture('image', this.rgba_textures[idx], false);
+            this.cdep_cs.setTexture('depths', this.depth_textures[idx], false);
 
-            let relative_cam_position = view_params.synthesized_position.subtract(this.cam_positions[i]);
+            let relative_cam_position = view_params.synthesized_position.subtract(this.cam_positions[idx]);
             this.params.updateVector3('camera_position', relative_cam_position);
             this.params.updateFloat('camera_ipd', view_params.ipd);
             this.params.updateFloat('camera_focal_dist', view_params.focal_dist);

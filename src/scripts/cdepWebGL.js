@@ -1,6 +1,7 @@
 import { Scene } from '@babylonjs/core/scene';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { ShaderMaterial } from '@babylonjs/core/Materials/shaderMaterial';
 import { MultiRenderTarget } from '@babylonjs/core/Materials/Textures/multiRenderTarget';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -111,6 +112,7 @@ class CdepWebGL extends CdepAbstract {
         super(scene, engine);
 
         this.rtt_scene = new Scene(this.engine);
+        this.rtt_scene.clearColor = new Color3(0.0, 0.0, 0.0);
 
         const cdep_material = new ShaderMaterial(
             'cdep_shader',
@@ -138,6 +140,7 @@ class CdepWebGL extends CdepAbstract {
         this.camera.orthoBottom = 2.0 * Math.PI;
         this.camera.orthoTop = 0.0;
 
+        this.point_cloud_meshes = [];
         this.rgbd_target = null;
     }
 
@@ -155,25 +158,22 @@ class CdepWebGL extends CdepAbstract {
         
         this.cdep_materials[0].setTexture('image', this.rgba_textures[0]);
         this.cdep_materials[0].setTexture('depths', this.depth_textures[0]);
-        this.cdep_materials[0].setFloat('depth_hint', 0.0);
         
         const point_cloud = this.createPointCloudMesh(width, height);
         point_cloud.material = this.cdep_materials[0];
-        this.rgbd_target.renderList.push(point_cloud);
+        //this.rgbd_target.renderList.push(point_cloud);
+        this.point_cloud_meshes.push(point_cloud);
 
-        let depth_hint = 0.015;
         for (let i = 1; i < this.num_images; i++) {
             const cdep_material_clone = this.cdep_materials[0].clone();
             cdep_material_clone.setTexture('image', this.rgba_textures[i]);
             cdep_material_clone.setTexture('depths', this.depth_textures[i]);
-            cdep_material_clone.setFloat('depth_hint', depth_hint);
             this.cdep_materials.push(cdep_material_clone);
 
             const point_cloud_clone = point_cloud.clone('point_cloud_' + i);
             point_cloud_clone.material = cdep_material_clone;
-            this.rgbd_target.renderList.push(point_cloud_clone);
-
-            depth_hint += 0.015;
+            //this.rgbd_target.renderList.push(point_cloud_clone);
+            this.point_cloud_meshes.push(point_cloud_clone);
         }
 
         this.rtt_scene.customRenderTargets.push(this.rgbd_target);
@@ -218,17 +218,24 @@ class CdepWebGL extends CdepAbstract {
     }
 
     synthesizeView(view_params) {
-        // TODO: render each image
-        for (let i = 0; i < this.num_images; i++) {
-            let relative_cam_position = view_params.synthesized_position.subtract(this.cam_positions[i]);
-            this.cdep_materials[i].setVector3('cam_position', relative_cam_position);
-            this.cdep_materials[i].setFloat('cam_ipd', view_params.ipd);
-            this.cdep_materials[i].setFloat('cam_focal_dist', view_params.focal_dist);
+        // Render each image
+        let i;
+        let depth_hint = 0.0;
+        let views = this.determineViews(view_params.synthesized_position, view_params.max_views);
+        this.rgbd_target.renderList = [];
+        for (i = 0; i < views.length; i++) {
+            let idx = views[i];
+            this.rgbd_target.renderList.push(this.point_cloud_meshes[idx]);
+            let relative_cam_position = view_params.synthesized_position.subtract(this.cam_positions[idx]);
+            this.cdep_materials[idx].setVector3('cam_position', relative_cam_position);
+            this.cdep_materials[idx].setFloat('cam_ipd', view_params.ipd);
+            this.cdep_materials[idx].setFloat('cam_focal_dist', view_params.focal_dist);
+            this.cdep_materials[idx].setFloat('depth_hint', depth_hint);
+            depth_hint += 0.015;
         }
 
         // Wait for target to be ready
         while(!this.rgbd_target.isReadyForRendering()) ;
-        //console.log('here - rtt ready');
 
         // Render
         this.rgbd_target.render();

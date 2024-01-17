@@ -47,9 +47,12 @@ function createScene(render_type) {
     // babylon.camera = new ArcRotateCamera('camera', -Math.PI / 2.0,  3.0 * Math.PI / 8.0, 10.0, 
     //                                      new Vector3(0.0, 2.5, 0.0), babylon.scene);
     // babylon.camera.wheelPrecision = 30;
-    babylon.camera = new UniversalCamera('camera', new Vector3(0.0, 0.0, 0.0), babylon.scene)
+    babylon.camera = new UniversalCamera('camera', new Vector3(0.0, 0.0, 0.0), babylon.scene);
+    //babylon.camera.fov = 45.0 * Math.PI / 180.0;
     babylon.camera.speed = 0.1;
     babylon.camera.attachControl(babylon.canvas, true);
+
+    console.log(getCameraFovAspect(babylon.camera));
     
     // Create a light
     const light = new HemisphericLight('light', new Vector3(0, 1, 0), babylon.scene);
@@ -172,6 +175,11 @@ function createScene(render_type) {
             start = now;
         }
     });
+}
+
+function getCameraFovAspect(camera) {
+    let proj_matrix = camera.getProjectionMatrix().asArray();
+    return {fov_y: 2.0 * Math.atan(1.0 / proj_matrix[5]), aspect: proj_matrix[5] / proj_matrix[0]};
 }
 
 

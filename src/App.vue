@@ -8,11 +8,10 @@ import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
+import { PhotoDome } from '@babylonjs/core/Helpers/photoDome'
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { GridMaterial } from '@babylonjs/materials/grid/gridMaterial';
-import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
-import { Constants } from '@babylonjs/core/Engines/constants';
 
 import { CdepWebGPU } from './scripts/cdepWebGPU';
 import { CdepWebGL } from './scripts/cdepWebGL';
@@ -21,7 +20,6 @@ import { CdepWebGL } from './scripts/cdepWebGL';
 import * as WEBGPU_EXT from '@babylonjs/core/Engines/WebGPU/Extensions/index.js';
 
 import { reactive, ref, onMounted } from 'vue'
-import { MaterialSheenDefines } from '@babylonjs/core/Materials/PBR/pbrSheenConfiguration';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
 
@@ -63,6 +61,13 @@ function createScene(render_type) {
     const plane = CreatePlane('plane', {width: 5, height: 5}, babylon.scene);
     plane.material = cdep_mat;
     plane.position.y = 2.5;
+
+    // Create photo dome for 360 panoramas
+    const photo_dome = new PhotoDome('pano360', BASE_URL + 'images/photodome_start.png',
+                                     {resolution: 32, size: 1000}, babylon.scene);
+    photo_dome.imageMode = PhotoDome.MODE_TOPBOTTOM;
+    photo_dome.rotation.y = 0.5 * Math.PI;
+    photo_dome.scaling.y = -1.0;
 
     // Create a 'ground'
     const grid_mat = new GridMaterial('grid', babylon.scene);
@@ -118,31 +123,8 @@ function createScene(render_type) {
 
     cdep_compute.initializePanoramaCollection(panoramas)
     .then((image_dims) => {
-        console.log('C-DEP initialized');
-        // // Synthesize new view
-        // let view_params = {
-        //     synthesized_position: new Vector3(0.0, 1.70, 0.725),
-        //     max_views: 3,
-        //     ipd: 0.065,
-        //     focal_dist: 1.95,
-        //     z_max: 12.0
-        // };
-        // start_time = performance.now();
-        // //for (let i = 0; i < 2; i++) {
-        //     cdep_compute.synthesizeView(view_params);
-        // //}
-
-        // // Update textures on model
-        // let textures = cdep_compute.getRgbdTextures();
-        // cdep_mat.emissiveTexture = textures[0];
-
-        // return textures[0].readPixels();
+        console.log('C-DEP initialized', image_dims);
     })
-    // .then((pixels) => {
-    //     console.log(pixels[2048 * 2048 + 512], pixels[2048 * 2048 + 513], pixels[2048 * 2048 + 514]);
-    //     let end_time = performance.now();
-    //     console.log('Time: ' + ((end_time - start_time) / 2).toFixed(1) + 'ms');
-    // })
     .catch((error) => {
         console.log(error);
     });
@@ -175,6 +157,7 @@ function createScene(render_type) {
             // Update textures on model
             let textures = cdep_compute.getRgbdTextures();
             cdep_mat.emissiveTexture = textures[0];
+            photo_dome.texture = textures[0];
         }
 
         babylon.scene.render();

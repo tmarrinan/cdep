@@ -343,7 +343,7 @@ class CdepWebGPU extends CdepAbstract {
             this.params.updateFloat('depth_hint', depth_hint);
             this.params.updateUInt('use_xr', use_xr);
             if (use_xr > 0) {
-                this.params.updateFloat('xr_fovy', view_params.xr_fovy * Math.PI / 180.0);
+                this.params.updateFloat('xr_fovy', view_params.xr_fovy);
                 this.params.updateFloat('xr_aspect', view_params.xr_aspect);
                 this.params.updateVector3('xr_view_dir', view_params.xr_view_dir);
             }

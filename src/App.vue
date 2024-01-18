@@ -5,20 +5,28 @@ import { Scene } from '@babylonjs/core/scene';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Ray } from '@babylonjs/core/Culling/ray';
-import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
-import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import { PhotoDome } from '@babylonjs/core/Helpers/photoDome'
 import { CreateGround } from '@babylonjs/core/Meshes/Builders/groundBuilder';
-import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { GridMaterial } from '@babylonjs/materials/grid/gridMaterial';
+
+import { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience';
+import { WebXRState } from '@babylonjs/core/XR/webXRTypes';
 
 import { CdepWebGPU } from './scripts/cdepWebGPU';
 import { CdepWebGL } from './scripts/cdepWebGL';
 
 // Must import for proper functionality with extensions such as RawTexture 
-import * as WEBGPU_EXT from '@babylonjs/core/Engines/WebGPU/Extensions/index.js';
+//import * as WEBGPU_EXT from '@babylonjs/core/Engines/WebGPU/Extensions/index.js';
+import '@babylonjs/core/Engines/WebGPU/Extensions/index';
+
+// Must import to avoid `sceneToRenderTo.beginAnimation is not a function` for WebXR
+import '@babylonjs/core/Animations/animatable';
+
+// Must import for loading controller models from WebXR registry
+import '@babylonjs/loaders/glTF';
+import '@babylonjs/core/Materials/Node/Blocks';
 
 import { reactive, ref, onMounted } from 'vue'
 
@@ -28,7 +36,10 @@ let babylon = {
     canvas: null,
     engine: null,
     scene: null,
-    camera: null
+    camera: null,
+    active_camera: null,
+    projection: null,
+    user_height: 1.7
 };
 
 function createScene(render_type) {
@@ -47,12 +58,14 @@ function createScene(render_type) {
     // babylon.camera = new ArcRotateCamera('camera', -Math.PI / 2.0,  3.0 * Math.PI / 8.0, 10.0, 
     //                                      new Vector3(0.0, 2.5, 0.0), babylon.scene);
     // babylon.camera.wheelPrecision = 30;
-    babylon.camera = new UniversalCamera('camera', new Vector3(0.0, 0.0, 0.0), babylon.scene);
+    const desktop_user_height = babylon.user_height;
+    babylon.camera = new UniversalCamera('camera', new Vector3(0.0, desktop_user_height, 0.0), babylon.scene);
     //babylon.camera.fov = 45.0 * Math.PI / 180.0;
     babylon.camera.speed = 0.1;
     babylon.camera.attachControl(babylon.canvas, true);
+    babylon.active_camera = babylon.camera;
 
-    console.log(getCameraFovAspect(babylon.camera));
+    babylon.projection = getCameraFovAspect(babylon.camera);
     
     // Create a light
     const light = new HemisphericLight('light', new Vector3(0, 1, 0), babylon.scene);
@@ -135,6 +148,32 @@ function createScene(render_type) {
         console.log(error);
     });
 
+    // Initialize the XR view (currently only supported by WebGL)
+    if (render_type === 'WebGL') {
+        WebXRDefaultExperience.CreateAsync(babylon.scene, {})
+        .then((xr) => {
+            xr.baseExperience.onStateChangedObservable.add((xr_state) => {
+                if (xr_state === WebXRState.IN_XR) {
+                    console.log('Entered VR');
+                    const xr_camera = xr.baseExperience.camera;
+                    babylon.projection = getCameraFovAspect(xr_camera.rigCameras[0]);
+                    babylon.active_camera = xr_camera;
+                    babylon.user_height = xr_camera.position.y;
+                }
+                else if (xr_state === WebXRState.NOT_IN_XR) {
+                    console.log('Exited VR');
+                    babylon.projection = getCameraFovAspect(babylon.camera);
+                    babylon.active_camera = babylon.camera;
+                    babylon.user_height = desktop_user_height;
+                }
+            });
+        })
+        .catch((error) => {
+            // XR not supported
+            console.log(error);
+        });
+    }
+
     
     // Render every frame
     let start = performance.now();
@@ -144,10 +183,10 @@ function createScene(render_type) {
 
         if (cdep_compute.isReady()) {
             // Synthesize new view
-            let camera_data = babylon.camera.getForwardRay();
+            let camera_data = babylon.active_camera.getForwardRay();
             let center_pos = new Vector3(0.0, 1.70, 0.725);
             //let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(time), 0.1425 * Math.sin(time));
-            let animation_pos = new Vector3(camera_data.origin.x, camera_data.origin.y, -camera_data.origin.z);
+            let animation_pos = new Vector3(camera_data.origin.x, camera_data.origin.y - babylon.user_height, -camera_data.origin.z);
 
             let view_params = {
                 synthesized_position: center_pos.add(animation_pos),
@@ -155,15 +194,14 @@ function createScene(render_type) {
                 ipd: 0.065,
                 focal_dist: 1.95,
                 z_max: 12.0,
-                xr_fovy: 75.0,
-                xr_aspect: 1.0,
+                xr_fovy: babylon.projection.fov_y, //75.0,
+                xr_aspect: babylon.projection.aspect, //1.0,
                 xr_view_dir: new Vector3(camera_data.direction.x, camera_data.direction.y, -camera_data.direction.z)
             };
             cdep_compute.synthesizeView(view_params);
 
             // Update textures on model
             let textures = cdep_compute.getRgbdTextures();
-            //cdep_mat.emissiveTexture = textures[0];
             photo_dome.texture = textures[0];
         }
 
@@ -186,7 +224,7 @@ function getCameraFovAspect(camera) {
 onMounted(async () => {
     babylon.canvas = document.getElementById('gpu-canvas');
 
-    let force_gl = false;
+    let force_gl = true;
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {

@@ -193,7 +193,6 @@ class CdepWebGL extends CdepAbstract {
         
         const point_cloud = this.createPointCloudMesh(width, height);
         point_cloud.material = this.cdep_materials[0];
-        //this.rgbd_target.renderList.push(point_cloud);
         this.point_cloud_meshes.push(point_cloud);
 
         for (let i = 1; i < this.num_images; i++) {
@@ -204,7 +203,6 @@ class CdepWebGL extends CdepAbstract {
 
             const point_cloud_clone = point_cloud.clone('point_cloud_' + i);
             point_cloud_clone.material = cdep_material_clone;
-            //this.rgbd_target.renderList.push(point_cloud_clone);
             this.point_cloud_meshes.push(point_cloud_clone);
         }
 
@@ -268,7 +266,7 @@ class CdepWebGL extends CdepAbstract {
             this.cdep_materials[idx].setFloat('depth_hint', depth_hint);
             this.cdep_materials[idx].setFloat('use_xr', use_xr);
             if (use_xr > 0.0) {
-                this.cdep_materials[idx].setFloat('xr_fovy', view_params.xr_fovy * Math.PI / 180.0);
+                this.cdep_materials[idx].setFloat('xr_fovy', view_params.xr_fovy);
                 this.cdep_materials[idx].setFloat('xr_aspect', view_params.xr_aspect);
                 this.cdep_materials[idx].setVector3('xr_view_dir', view_params.xr_view_dir);
             }

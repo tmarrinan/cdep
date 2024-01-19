@@ -14,6 +14,8 @@ import { GridMaterial } from '@babylonjs/materials/grid/gridMaterial';
 import { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience';
 import { WebXRState } from '@babylonjs/core/XR/webXRTypes';
 
+import { Inspector } from '@babylonjs/inspector';
+
 import { CdepWebGPU } from './scripts/cdepWebGPU';
 import { CdepWebGL } from './scripts/cdepWebGL';
 
@@ -53,6 +55,13 @@ function createScene(render_type) {
     // Create a scene
     babylon.scene = new Scene(babylon.engine);
     babylon.scene.clearColor = new Color3(0.1, 0.1, 0.1);
+    babylon.scene.skipPointerMovePicking = true;
+
+    // Inspector.Show(babylon.scene, {embedMode: false});
+    // //this.rtt_scene.debugLayer.show();
+    // //this.rtt_scene.debugLayer.setAsActiveScene();
+    // document.getElementById('scene-explorer-host').style = '';
+    // document.getElementById('inspector-host').style = '';
 
     // Create a camera
     // babylon.camera = new ArcRotateCamera('camera', -Math.PI / 2.0,  3.0 * Math.PI / 8.0, 10.0, 
@@ -149,39 +158,45 @@ function createScene(render_type) {
     });
 
     // Initialize the XR view (currently only supported by WebGL)
-    if (render_type === 'WebGL') {
-        WebXRDefaultExperience.CreateAsync(babylon.scene, {})
-        .then((xr) => {
-            xr.baseExperience.onStateChangedObservable.add((xr_state) => {
-                if (xr_state === WebXRState.IN_XR) {
-                    console.log('Entered VR');
-                    const xr_camera = xr.baseExperience.camera;
-                    babylon.projection = getCameraFovAspect(xr_camera.rigCameras[0]);
-                    babylon.active_camera = xr_camera;
-                    babylon.user_height = xr_camera.position.y;
-                }
-                else if (xr_state === WebXRState.NOT_IN_XR) {
-                    console.log('Exited VR');
-                    babylon.projection = getCameraFovAspect(babylon.camera);
-                    babylon.active_camera = babylon.camera;
-                    babylon.user_height = desktop_user_height;
-                }
-            });
-        })
-        .catch((error) => {
-            // XR not supported
-            console.log(error);
-        });
-    }
+    // if (render_type === 'WebGL') {
+    //     WebXRDefaultExperience.CreateAsync(babylon.scene, {})
+    //     .then((xr) => {
+    //         xr.baseExperience.onStateChangedObservable.add((xr_state) => {
+    //             if (xr_state === WebXRState.IN_XR) {
+    //                 console.log('Entered VR');
+    //                 const xr_camera = xr.baseExperience.camera;
+    //                 babylon.projection = getCameraFovAspect(xr_camera.rigCameras[0]);
+    //                 babylon.active_camera = xr_camera;
+    //                 babylon.user_height = xr_camera.position.y;
+    //             }
+    //             else if (xr_state === WebXRState.NOT_IN_XR) {
+    //                 console.log('Exited VR');
+    //                 babylon.projection = getCameraFovAspect(babylon.camera);
+    //                 babylon.active_camera = babylon.camera;
+    //                 babylon.user_height = desktop_user_height;
+    //             }
+    //         });
+    //     })
+    //     .catch((error) => {
+    //         // XR not supported
+    //         console.log(error);
+    //     });
+    // }
 
     
     // Render every frame
-    let start = performance.now();
+    let ready = false;
+    let start, frames;
     let time = 0.0;
-    babylon.engine.runRenderLoop(() => {
-        time += (babylon.engine.getDeltaTime() / 1000.0);
 
-        if (cdep_compute.isReady()) {
+    let first = true;
+    babylon.scene.onBeforeRenderObservable.add(() => {
+        if (!ready && cdep_compute.isReady()) {
+            ready = true;
+            frames = 0;
+            start = performance.now();
+        }
+        if (ready) {
             // Synthesize new view
             let camera_data = babylon.active_camera.getForwardRay();
             let center_pos = new Vector3(0.0, 1.70, 0.725);
@@ -190,7 +205,7 @@ function createScene(render_type) {
 
             let view_params = {
                 synthesized_position: center_pos.add(animation_pos),
-                max_views: 8,
+                max_views: 6,
                 ipd: 0.065,
                 focal_dist: 1.95,
                 z_max: 12.0,
@@ -203,15 +218,63 @@ function createScene(render_type) {
             // Update textures on model
             let textures = cdep_compute.getRgbdTextures();
             photo_dome.texture = textures[0];
+
+            // Calculate timing
+            let now = performance.now();
+            let elapsed = now - start;
+            if (elapsed >= 2000.0) {
+                console.log('avg ms per frame: ' + (elapsed / frames).toFixed(2) + 'ms');
+                //console.log(babylon.engine.getFps().toFixed(1) + ' fps');
+                frames = 0;
+                start = now;
+            }
+            first = false;
         }
+    });
+
+    babylon.engine.runRenderLoop(() => {
+        time += (babylon.engine.getDeltaTime() / 1000.0);
+        // if (!ready && cdep_compute.isReady()) {
+        //     ready = true;
+        //     frames = 0;
+        //     start = performance.now();
+        // }
+        // if (ready) {
+        //     // Synthesize new view
+        //     let camera_data = babylon.active_camera.getForwardRay();
+        //     let center_pos = new Vector3(0.0, 1.70, 0.725);
+        //     //let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(time), 0.1425 * Math.sin(time));
+        //     let animation_pos = new Vector3(camera_data.origin.x, camera_data.origin.y - babylon.user_height, -camera_data.origin.z);
+
+        //     let view_params = {
+        //         synthesized_position: center_pos.add(animation_pos),
+        //         max_views: 3,
+        //         ipd: 0.065,
+        //         focal_dist: 1.95,
+        //         z_max: 12.0,
+        //         xr_fovy: babylon.projection.fov_y, //75.0,
+        //         xr_aspect: babylon.projection.aspect, //1.0,
+        //         xr_view_dir: new Vector3(camera_data.direction.x, camera_data.direction.y, -camera_data.direction.z)
+        //     };
+        //     cdep_compute.synthesizeView(view_params);
+
+        //     // Update textures on model
+        //     let textures = cdep_compute.getRgbdTextures();
+        //     photo_dome.texture = textures[0];
+
+        //     // Calculate timing
+        //     let now = performance.now();
+        //     let elapsed = now - start;
+        //     if (elapsed >= 2000.0) {
+        //         console.log('avg ms per frame: ' + (elapsed / frames).toFixed(2) + 'ms');
+        //         //console.log(babylon.engine.getFps().toFixed(1) + ' fps');
+        //         frames = 0;
+        //         start = now;
+        //     }
+        // }
 
         babylon.scene.render();
-
-        let now = performance.now();
-        if ((now - start) >= 2000.0) {
-            console.log(babylon.engine.getFps().toFixed(1) + ' fps');
-            start = now;
-        }
+        frames++;
     });
 }
 

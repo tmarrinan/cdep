@@ -7,7 +7,13 @@ import { MultiRenderTarget } from '@babylonjs/core/Materials/Textures/multiRende
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Constants } from '@babylonjs/core/Engines/constants';
+
+import { Inspector } from '@babylonjs/inspector';
+
 import { CdepAbstract } from './cdepAbstract';
+
+// Must import for timer query
+import '@babylonjs/core/Engines/index';
 
 // Vertex Shader source code - render C-DEP to texture
 const cdep_vert_src = `
@@ -144,6 +150,12 @@ class CdepWebGL extends CdepAbstract {
 
         this.rtt_scene = new Scene(this.engine);
         this.rtt_scene.clearColor = new Color3(0.0, 0.0, 0.0);
+        this.rtt_scene.skipPointerMovePicking = true;
+        Inspector.Show(this.rtt_scene, {embedMode: false});
+        // this.rtt_scene.debugLayer.show();
+        // this.rtt_scene.debugLayer.setAsActiveScene();
+        document.getElementById('scene-explorer-host').style = '';
+        document.getElementById('inspector-host').style = '';
 
         const cdep_material = new ShaderMaterial(
             'cdep_shader',
@@ -174,6 +186,7 @@ class CdepWebGL extends CdepAbstract {
 
         this.point_cloud_meshes = [];
         this.rgbd_target = null;
+        this.render_list = [];
     }
 
     initializeOutputBuffer(width, height) {
@@ -187,6 +200,9 @@ class CdepWebGL extends CdepAbstract {
         this.rgbd_target = new MultiRenderTarget('out_rgbd', {width: width, height: height * 2}, 2,
                                                  this.rtt_scene, render_target_options);
         this.rgbd_target.activeCamera = this.camera;
+        this.rgbd_target.getCustomRenderList = (layer, render_list, length) => {
+            return this.render_list;
+        };
         
         this.cdep_materials[0].setTexture('image', this.rgba_textures[0]);
         this.cdep_materials[0].setTexture('depths', this.depth_textures[0]);
@@ -207,6 +223,8 @@ class CdepWebGL extends CdepAbstract {
         }
 
         this.rtt_scene.customRenderTargets.push(this.rgbd_target);
+
+        while (!this.rgbd_target.isReadyForRendering()) ;
     }
 
     createPointCloudMesh(width, height) {
@@ -215,11 +233,26 @@ class CdepWebGL extends CdepAbstract {
         let vertex_positions = new Float32Array(size * 3);
         let vertex_texcoords = new Float32Array(size * 2);
 
+        let block_size = 512;
+        let blocks_x = ~~(width / block_size);
+        let blocks_y = ~~(height / block_size);
+        let block_order = [...Array(blocks_x * blocks_y).keys()];
+        block_order.sort(() => { return Math.random() - 0.5; });
+
         let idx1, idx2, norm_x, norm_y, azimuth, inclination;
         for (let j = 0; j < height; j++) {
             for (let i = 0; i < width; i++) {
-                idx1 = j * width + i;
-                idx2 = (j + height) * width + i;
+                let bx = i % block_size;
+                let by = j % block_size;
+                let bidx = this.mortonZIndex(bx, by);
+                let block = blocks_x * (~~(j / block_size)) + (~~(i / block_size));
+                let idx = (block_size * block_size) * block + bidx;
+
+                //idx1 = j * width + i;
+                //idx2 = (j + height) * width + i;
+                idx1 = idx;
+                idx2 = idx + height * width;
+
                 norm_x = (i + 0.5) / width;
                 norm_y = (j + 0.5) / height;
                 azimuth = 2.0 * Math.PI * (1.0 - norm_x);
@@ -243,8 +276,32 @@ class CdepWebGL extends CdepAbstract {
         vertex_data.positions = vertex_positions;
         vertex_data.uvs = vertex_texcoords;
         vertex_data.applyToMesh(pc);
+        pc.freezeWorldMatrix();
+        pc.doNotSyncBoundingInfo = true;
+        pc.isPickable = false;
 
         return pc;
+    }
+
+    mortonZIndex(x, y) {
+        const MASKS = [0x55555555, 0x33333333, 0x0F0F0F0F, 0x00FF00FF];
+        const SHIFTS = [1, 2, 4, 8];
+    
+        let x32 = x;
+        let y32 = y;
+    
+        x32 = (x32 | (x32 << SHIFTS[3])) & MASKS[3];
+        x32 = (x32 | (x32 << SHIFTS[2])) & MASKS[2];
+        x32 = (x32 | (x32 << SHIFTS[1])) & MASKS[1];
+        x32 = (x32 | (x32 << SHIFTS[0])) & MASKS[0];
+    
+        y32 = (y32 | (y32 << SHIFTS[3])) & MASKS[3];
+        y32 = (y32 | (y32 << SHIFTS[2])) & MASKS[2];
+        y32 = (y32 | (y32 << SHIFTS[1])) & MASKS[1];
+        y32 = (y32 | (y32 << SHIFTS[0])) & MASKS[0];
+    
+        let morton_idx = x32 | (y32 << 1);
+        return morton_idx;
     }
 
     synthesizeView(view_params) {
@@ -255,10 +312,10 @@ class CdepWebGL extends CdepAbstract {
                       view_params.hasOwnProperty('xr_aspect') &&
                       view_params.hasOwnProperty('xr_view_dir')) ? 1.0 : 0.0;
         let views = this.determineViews(view_params.synthesized_position, view_params.max_views);
-        this.rgbd_target.renderList = [];
+        this.render_list = [];
         for (i = 0; i < views.length; i++) {
             let idx = views[i];
-            this.rgbd_target.renderList.push(this.point_cloud_meshes[idx]);
+            this.render_list.push(this.point_cloud_meshes[idx]);
             let relative_cam_position = view_params.synthesized_position.subtract(this.cam_positions[idx]);
             this.cdep_materials[idx].setVector3('cam_position', relative_cam_position);
             this.cdep_materials[idx].setFloat('cam_ipd', view_params.ipd);
@@ -273,12 +330,13 @@ class CdepWebGL extends CdepAbstract {
             depth_hint += 0.015;
         }
 
-        // Wait for target to be ready
-        while(!this.rgbd_target.isReadyForRendering()) ;
-
         // Render
         this.rgbd_target.render();
     }
+
+    // isReady() {
+    //     return this.rgbd_target !== null && this.rgbd_target.isReadyForRendering();
+    // }
 
     getRgbdTextures() {
         return this.rgbd_target.textures;

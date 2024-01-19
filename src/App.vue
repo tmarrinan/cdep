@@ -57,11 +57,8 @@ function createScene(render_type) {
     babylon.scene.clearColor = new Color3(0.1, 0.1, 0.1);
     babylon.scene.skipPointerMovePicking = true;
 
-    // Inspector.Show(babylon.scene, {embedMode: false});
-    // //this.rtt_scene.debugLayer.show();
-    // //this.rtt_scene.debugLayer.setAsActiveScene();
-    // document.getElementById('scene-explorer-host').style = '';
-    // document.getElementById('inspector-host').style = '';
+    Inspector.Show(babylon.scene, {embedMode: true});
+    document.getElementById('embed-host').style = 'left: 0px; right: unset;';
 
     // Create a camera
     // babylon.camera = new ArcRotateCamera('camera', -Math.PI / 2.0,  3.0 * Math.PI / 8.0, 10.0, 
@@ -158,30 +155,30 @@ function createScene(render_type) {
     });
 
     // Initialize the XR view (currently only supported by WebGL)
-    // if (render_type === 'WebGL') {
-    //     WebXRDefaultExperience.CreateAsync(babylon.scene, {})
-    //     .then((xr) => {
-    //         xr.baseExperience.onStateChangedObservable.add((xr_state) => {
-    //             if (xr_state === WebXRState.IN_XR) {
-    //                 console.log('Entered VR');
-    //                 const xr_camera = xr.baseExperience.camera;
-    //                 babylon.projection = getCameraFovAspect(xr_camera.rigCameras[0]);
-    //                 babylon.active_camera = xr_camera;
-    //                 babylon.user_height = xr_camera.position.y;
-    //             }
-    //             else if (xr_state === WebXRState.NOT_IN_XR) {
-    //                 console.log('Exited VR');
-    //                 babylon.projection = getCameraFovAspect(babylon.camera);
-    //                 babylon.active_camera = babylon.camera;
-    //                 babylon.user_height = desktop_user_height;
-    //             }
-    //         });
-    //     })
-    //     .catch((error) => {
-    //         // XR not supported
-    //         console.log(error);
-    //     });
-    // }
+    if (render_type === 'WebGL') {
+        WebXRDefaultExperience.CreateAsync(babylon.scene, {})
+        .then((xr) => {
+            xr.baseExperience.onStateChangedObservable.add((xr_state) => {
+                if (xr_state === WebXRState.IN_XR) {
+                    console.log('Entered VR');
+                    const xr_camera = xr.baseExperience.camera;
+                    babylon.projection = getCameraFovAspect(xr_camera.rigCameras[0]);
+                    babylon.active_camera = xr_camera;
+                    babylon.user_height = xr_camera.position.y;
+                }
+                else if (xr_state === WebXRState.NOT_IN_XR) {
+                    console.log('Exited VR');
+                    babylon.projection = getCameraFovAspect(babylon.camera);
+                    babylon.active_camera = babylon.camera;
+                    babylon.user_height = desktop_user_height;
+                }
+            });
+        })
+        .catch((error) => {
+            // XR not supported
+            console.log(error);
+        });
+    }
 
     
     // Render every frame
@@ -191,6 +188,7 @@ function createScene(render_type) {
 
     let first = true;
     babylon.scene.onBeforeRenderObservable.add(() => {
+        time += (babylon.engine.getDeltaTime() / 1000.0);
         if (!ready && cdep_compute.isReady()) {
             ready = true;
             frames = 0;
@@ -233,46 +231,6 @@ function createScene(render_type) {
     });
 
     babylon.engine.runRenderLoop(() => {
-        time += (babylon.engine.getDeltaTime() / 1000.0);
-        // if (!ready && cdep_compute.isReady()) {
-        //     ready = true;
-        //     frames = 0;
-        //     start = performance.now();
-        // }
-        // if (ready) {
-        //     // Synthesize new view
-        //     let camera_data = babylon.active_camera.getForwardRay();
-        //     let center_pos = new Vector3(0.0, 1.70, 0.725);
-        //     //let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(time), 0.1425 * Math.sin(time));
-        //     let animation_pos = new Vector3(camera_data.origin.x, camera_data.origin.y - babylon.user_height, -camera_data.origin.z);
-
-        //     let view_params = {
-        //         synthesized_position: center_pos.add(animation_pos),
-        //         max_views: 3,
-        //         ipd: 0.065,
-        //         focal_dist: 1.95,
-        //         z_max: 12.0,
-        //         xr_fovy: babylon.projection.fov_y, //75.0,
-        //         xr_aspect: babylon.projection.aspect, //1.0,
-        //         xr_view_dir: new Vector3(camera_data.direction.x, camera_data.direction.y, -camera_data.direction.z)
-        //     };
-        //     cdep_compute.synthesizeView(view_params);
-
-        //     // Update textures on model
-        //     let textures = cdep_compute.getRgbdTextures();
-        //     photo_dome.texture = textures[0];
-
-        //     // Calculate timing
-        //     let now = performance.now();
-        //     let elapsed = now - start;
-        //     if (elapsed >= 2000.0) {
-        //         console.log('avg ms per frame: ' + (elapsed / frames).toFixed(2) + 'ms');
-        //         //console.log(babylon.engine.getFps().toFixed(1) + ' fps');
-        //         frames = 0;
-        //         start = now;
-        //     }
-        // }
-
         babylon.scene.render();
         frames++;
     });
@@ -287,7 +245,7 @@ function getCameraFovAspect(camera) {
 onMounted(async () => {
     babylon.canvas = document.getElementById('gpu-canvas');
 
-    let force_gl = true;
+    let force_gl = false;
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {
@@ -309,6 +267,9 @@ onMounted(async () => {
 
         // Laptops w/ integrated + discrete GPU: must use settings to 
         // force browser to use high performance GPU
+        //
+        // For best performance with WebGL2, select OpenGL as rendering
+        // backend for ANGLE
         const debug_info = gl2.getExtension("WEBGL_debug_renderer_info");
         const vendor = gl2.getParameter(debug_info.UNMASKED_VENDOR_WEBGL);
         const renderer = gl2.getParameter(debug_info.UNMASKED_RENDERER_WEBGL);

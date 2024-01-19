@@ -151,11 +151,11 @@ class CdepWebGL extends CdepAbstract {
         this.rtt_scene = new Scene(this.engine);
         this.rtt_scene.clearColor = new Color3(0.0, 0.0, 0.0);
         this.rtt_scene.skipPointerMovePicking = true;
-        Inspector.Show(this.rtt_scene, {embedMode: false});
+        // Inspector.Show(this.rtt_scene, {embedMode: false});
         // this.rtt_scene.debugLayer.show();
         // this.rtt_scene.debugLayer.setAsActiveScene();
-        document.getElementById('scene-explorer-host').style = '';
-        document.getElementById('inspector-host').style = '';
+        // document.getElementById('scene-explorer-host').style = '';
+        // document.getElementById('inspector-host').style = '';
 
         const cdep_material = new ShaderMaterial(
             'cdep_shader',
@@ -233,25 +233,11 @@ class CdepWebGL extends CdepAbstract {
         let vertex_positions = new Float32Array(size * 3);
         let vertex_texcoords = new Float32Array(size * 2);
 
-        let block_size = 512;
-        let blocks_x = ~~(width / block_size);
-        let blocks_y = ~~(height / block_size);
-        let block_order = [...Array(blocks_x * blocks_y).keys()];
-        block_order.sort(() => { return Math.random() - 0.5; });
-
         let idx1, idx2, norm_x, norm_y, azimuth, inclination;
         for (let j = 0; j < height; j++) {
             for (let i = 0; i < width; i++) {
-                let bx = i % block_size;
-                let by = j % block_size;
-                let bidx = this.mortonZIndex(bx, by);
-                let block = blocks_x * (~~(j / block_size)) + (~~(i / block_size));
-                let idx = (block_size * block_size) * block + bidx;
-
-                //idx1 = j * width + i;
-                //idx2 = (j + height) * width + i;
-                idx1 = idx;
-                idx2 = idx + height * width;
+                idx1 = j * width + i;
+                idx2 = (j + height) * width + i;
 
                 norm_x = (i + 0.5) / width;
                 norm_y = (j + 0.5) / height;
@@ -281,27 +267,6 @@ class CdepWebGL extends CdepAbstract {
         pc.isPickable = false;
 
         return pc;
-    }
-
-    mortonZIndex(x, y) {
-        const MASKS = [0x55555555, 0x33333333, 0x0F0F0F0F, 0x00FF00FF];
-        const SHIFTS = [1, 2, 4, 8];
-    
-        let x32 = x;
-        let y32 = y;
-    
-        x32 = (x32 | (x32 << SHIFTS[3])) & MASKS[3];
-        x32 = (x32 | (x32 << SHIFTS[2])) & MASKS[2];
-        x32 = (x32 | (x32 << SHIFTS[1])) & MASKS[1];
-        x32 = (x32 | (x32 << SHIFTS[0])) & MASKS[0];
-    
-        y32 = (y32 | (y32 << SHIFTS[3])) & MASKS[3];
-        y32 = (y32 | (y32 << SHIFTS[2])) & MASKS[2];
-        y32 = (y32 | (y32 << SHIFTS[1])) & MASKS[1];
-        y32 = (y32 | (y32 << SHIFTS[0])) & MASKS[0];
-    
-        let morton_idx = x32 | (y32 << 1);
-        return morton_idx;
     }
 
     synthesizeView(view_params) {

@@ -8,8 +8,6 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Constants } from '@babylonjs/core/Engines/constants';
 
-import { Inspector } from '@babylonjs/inspector';
-
 import { CdepAbstract } from './cdepAbstract';
 
 // Must import for timer query
@@ -91,9 +89,7 @@ void main() {
     float diagonal_fov = atan(tan(vertical_fov) * diag_aspect);
     vec3 point_dir = normalize(proj_sphere_pt.yzx);
     // discard point (move outside view volume) if angle between point direction and view diretion > diagonal FOV
-    float discard_offset = dot(point_dir, xr_view_dir) >= cos(diagonal_fov) ? 0.0 : 10.0;
-    out_azimuth -= discard_offset;
-    //out_azimuth -= use_xr * float(dot(point_dir, xr_view_dir) < cos(diagonal_fov)) * 10.0;
+    out_azimuth -= use_xr * float(dot(point_dir, xr_view_dir) < cos(diagonal_fov)) * 10.0;
 
     // Project to multiple pixels
     float dims_y = float(textureSize(depths, 0).y);
@@ -151,11 +147,6 @@ class CdepWebGL extends CdepAbstract {
         this.rtt_scene = new Scene(this.engine);
         this.rtt_scene.clearColor = new Color3(0.0, 0.0, 0.0);
         this.rtt_scene.skipPointerMovePicking = true;
-        // Inspector.Show(this.rtt_scene, {embedMode: false});
-        // this.rtt_scene.debugLayer.show();
-        // this.rtt_scene.debugLayer.setAsActiveScene();
-        // document.getElementById('scene-explorer-host').style = '';
-        // document.getElementById('inspector-host').style = '';
 
         const cdep_material = new ShaderMaterial(
             'cdep_shader',
@@ -181,8 +172,8 @@ class CdepWebGL extends CdepAbstract {
         this.camera.maxZ = 100.0;
         this.camera.orthoLeft = 2.0 * Math.PI;
         this.camera.orthoRight = 0.0;
-        this.camera.orthoBottom = 2.0 * Math.PI;
-        this.camera.orthoTop = 0.0;
+        this.camera.orthoBottom = 0.0;
+        this.camera.orthoTop = 2.0 * Math.PI;
 
         this.point_cloud_meshes = [];
         this.rgbd_target = null;
@@ -299,12 +290,12 @@ class CdepWebGL extends CdepAbstract {
         this.rgbd_target.render();
     }
 
-    // isReady() {
-    //     return this.rgbd_target !== null && this.rgbd_target.isReadyForRendering();
-    // }
-
     getRgbdTextures() {
         return this.rgbd_target.textures;
+    }
+
+    readRgbdTextures() {
+        return this.rgbd_target.textures[0].readPixels();
     }
 }
 

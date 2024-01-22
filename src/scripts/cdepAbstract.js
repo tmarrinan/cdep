@@ -69,6 +69,14 @@ class CdepAbstract {
         // !implement in inherited classes
     }
 
+    getRgbdTextures() {
+        // !implement in inherited classes
+    }
+
+    readRgbdTextures() {
+        // !implement in inherited classes
+    }
+
     determineViews(synthesized_position, max_views) {
         // Start by adding bounding corners (in num_views >= 2)
         let view0_dist2 = Vector3.DistanceSquared(synthesized_position, this.cam_positions[0]);

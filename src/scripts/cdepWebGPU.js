@@ -125,7 +125,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         if (visible_l) {
             // pixel position
             let out_x_l : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_l) / (2.0 * M_PI)));
-            let out_y_l : u32 = u32(round(f32(dims.y) * (out_inclination_l / M_PI)));
+            let out_y_l : u32 = u32(round(f32(dims.y) * ((M_PI - out_inclination_l) / M_PI))) + dims.y;
 
             // pack RGB-D into uint32
             let dist_norm_l = (camera_distance_l + params.depth_hint) / params.z_max;
@@ -141,7 +141,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
             let px_end_l : i32 = i32(ceil(0.5 * size_ratio_l));
             for (var j : i32 = -px_start_l; j < px_end_l; j++) {
                 let f_y : i32 = i32(out_y_l) + j;
-                if (f_y >= 0 && f_y < i32(dims.y)) {
+                if (f_y >= i32(dims.y) && f_y < 2 * i32(dims.y)) {
                     for (var i : i32 = -px_start_l; i <= px_end_l; i++) {
                         let f_x : i32 = i32(out_x_l) + i;
                         if (f_x >= 0 && f_x < i32(dims.x)) {
@@ -156,7 +156,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         if (visible_r) {
             // pixel position
             let out_x_r : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_r) / (2.0 * M_PI)));
-            let out_y_r : u32 = u32(round(f32(dims.y) * (out_inclination_r / M_PI))) + dims.y;
+            let out_y_r : u32 = u32(round(f32(dims.y) * ((M_PI - out_inclination_r) / M_PI)));
 
             // pack RGB-D into uint32
             let dist_norm_r = (camera_distance_r + params.depth_hint) / params.z_max;
@@ -172,7 +172,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
             let px_end_r : i32 = i32(ceil(0.5 * size_ratio_r));
             for (var j : i32 = -px_start_r; j < px_end_r; j++) {
                 let f_y : i32 = i32(out_y_r) + j;
-                if (f_y >= i32(dims.y) && f_y < 2 * i32(dims.y)) {
+                if (f_y >= 0 && f_y < i32(dims.y)) {
                     for (var i : i32 = -px_start_r; i <= px_end_r; i++) {
                         let f_x : i32 = i32(out_x_r) + i;
                         if (f_x >= 0 && f_x < i32(dims.x)) {
@@ -363,6 +363,11 @@ class CdepWebGPU extends CdepAbstract {
 
     getRgbdTextures() {
         return this.rgbd_textures;
+    }
+
+    readRgbdTextures() {
+        console.log(this.rgbd_textures[0]);
+        return this.rgbd_textures[0].readPixels();
     }
 }
 

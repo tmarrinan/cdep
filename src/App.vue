@@ -15,6 +15,7 @@ import { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperienc
 import { WebXRState } from '@babylonjs/core/XR/webXRTypes';
 
 import { Inspector } from '@babylonjs/inspector';
+import { Tools } from '@babylonjs/core/Misc/tools';
 
 import { CdepWebGPU } from './scripts/cdepWebGPU';
 import { CdepWebGL } from './scripts/cdepWebGL';
@@ -30,7 +31,7 @@ import '@babylonjs/core/Animations/animatable';
 import '@babylonjs/loaders/glTF';
 import '@babylonjs/core/Materials/Node/Blocks';
 
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, onMounted } from 'vue';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
 
@@ -92,15 +93,8 @@ function createScene(render_type) {
                                      {resolution: 32, size: 1000}, babylon.scene);
     photo_dome.imageMode = PhotoDome.MODE_TOPBOTTOM;
     photo_dome.rotation.y = 0.5 * Math.PI;
-    photo_dome.scaling.y = -1.0;
 
-    // Create a 'ground'
-    // const grid_mat = new GridMaterial('grid', babylon.scene);
-
-    // const ground = CreateGround('ground', { width: 5, height: 5, subdivisions: 2 }, babylon.scene);
-    // ground.material = grid_mat;
-
-    // C-DEP WebGPU
+    // C-DEP WebGPU / WebGL2
     let cdep_compute = (render_type === 'WebGPU') ? new CdepWebGPU(babylon.scene, babylon.engine) :
                                                     new CdepWebGL(babylon.scene, babylon.engine);
     let panoramas = [
@@ -182,19 +176,10 @@ function createScene(render_type) {
 
     
     // Render every frame
-    let ready = false;
-    let start, frames;
-    let time = 0.0;
-
-    let first = true;
+    let frame = 0;
+    //let start, frames;
     babylon.scene.onBeforeRenderObservable.add(() => {
-        time += (babylon.engine.getDeltaTime() / 1000.0);
-        if (!ready && cdep_compute.isReady()) {
-            ready = true;
-            frames = 0;
-            start = performance.now();
-        }
-        if (ready) {
+        if (cdep_compute.isReady()) {
             // Synthesize new view
             let camera_data = babylon.active_camera.getForwardRay();
             let center_pos = new Vector3(0.0, 1.70, 0.725);
@@ -217,16 +202,27 @@ function createScene(render_type) {
             let textures = cdep_compute.getRgbdTextures();
             photo_dome.texture = textures[0];
 
-            // Calculate timing
-            let now = performance.now();
-            let elapsed = now - start;
-            if (elapsed >= 2000.0) {
-                console.log('avg ms per frame: ' + (elapsed / frames).toFixed(2) + 'ms');
-                //console.log(babylon.engine.getFps().toFixed(1) + ' fps');
-                frames = 0;
-                start = now;
-            }
-            first = false;
+            // if (frame === 10) {
+            //     cdep_compute.readRgbdTextures()
+            //     .then((pixels) => {
+            //         Tools.DumpData(4096, 4096, pixels, undefined, 'image/png', 'synthesized_view.png', false);
+            //     })
+            //     .catch((error) => {
+            //         console.log(error);
+            //     });
+            // }
+            frame++;
+
+            // // Calculate timing
+            // let now = performance.now();
+            // let elapsed = now - start;
+            // if (elapsed >= 2000.0) {
+            //     console.log('avg ms per frame: ' + (elapsed / frames).toFixed(2) + 'ms');
+            //     //console.log(babylon.engine.getFps().toFixed(1) + ' fps');
+            //     frames = 0;
+            //     start = now;
+            // }
+            // first = false;
         }
     });
 
@@ -245,7 +241,7 @@ function getCameraFovAspect(camera) {
 onMounted(async () => {
     babylon.canvas = document.getElementById('gpu-canvas');
 
-    let force_gl = false;
+    let force_gl = true;
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {

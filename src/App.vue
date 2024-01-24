@@ -37,6 +37,7 @@ const BASE_URL = import.meta.env.BASE_URL || '/';
 
 let babylon = {
     canvas: null,
+    internal: null,
     engine: null,
     scene: null,
     camera: null,
@@ -142,7 +143,40 @@ function createScene(render_type) {
 
     cdep_compute.initializePanoramaCollection(panoramas)
     .then((image_dims) => {
-        console.log('C-DEP initialized', image_dims);
+        console.log('C-DEP initialized', image_dims, cdep_compute.isReady());
+
+        // Redner performance test
+        // let num_compute = 400;
+        // let pixel_buffer = new Uint8Array(256);
+        // let start_t = performance.now();
+
+        // let center_pos = new Vector3(0.0, 1.70, 0.725);
+        // let time = 0.0;
+        // for (let i = 0; i < num_compute; i++) {
+        //     let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(time), 0.1425 * Math.sin(time));
+        //     let view_params = {
+        //         synthesized_position: center_pos.add(animation_pos),
+        //         max_views: 8,
+        //         ipd: 0.065,
+        //         focal_dist: 1.95,
+        //         z_max: 12.0,
+        //         xr_fovy: babylon.projection.fov_y, //75.0,
+        //         xr_aspect: babylon.projection.aspect, //1.0,
+        //         xr_view_dir: new Vector3(0.0, 0.0, -1.0)
+        //     };
+        //     cdep_compute.synthesizeView(view_params);
+        //     time += 0.011111;
+        // }
+
+        // cdep_compute.readRgbdTextures({buffer: pixel_buffer, x: 2048, y: 1024, w: 1, h: 1})
+        // .then((pixels) => {
+        //     let end_t = performance.now();
+        //     console.log('average compute time: ' + ((end_t - start_t) / num_compute).toFixed(2) + 'ms');
+        //     console.log(pixels);
+        // })
+        // .catch((error) => {
+        //     console.log(error);
+        // });
     })
     .catch((error) => {
         console.log(error);
@@ -158,7 +192,7 @@ function createScene(render_type) {
                     const xr_camera = xr.baseExperience.camera;
                     babylon.projection = getCameraFovAspect(xr_camera.rigCameras[0]);
                     babylon.active_camera = xr_camera;
-                    babylon.user_height = xr_camera.position.y;
+                    babylon.user_height = xr_camera.realWorldHeight;
                 }
                 else if (xr_state === WebXRState.NOT_IN_XR) {
                     console.log('Exited VR');
@@ -177,20 +211,22 @@ function createScene(render_type) {
     
     // Render every frame
     let frame = 0;
-    //let start, frames;
     babylon.scene.onBeforeRenderObservable.add(() => {
         if (cdep_compute.isReady()) {
             // Synthesize new view
             let camera_data = babylon.active_camera.getForwardRay();
-            let center_pos = new Vector3(0.0, 1.70, 0.725);
-            //let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(time), 0.1425 * Math.sin(time));
-            let animation_pos = new Vector3(camera_data.origin.x, camera_data.origin.y - babylon.user_height, -camera_data.origin.z);
+            let center_pos = new Vector3(0.0, 0.0, 0.725);
+            // let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time),
+            //                                 babylon.user_height + 0.15 * Math.cos(time),
+            //                                 0.1425 * Math.sin(time));
+            let animation_pos = new Vector3(camera_data.origin.x, camera_data.origin.y, -camera_data.origin.z);
 
+            //let time_query = babylon.engine.startTimeQuery();
             let view_params = {
                 synthesized_position: center_pos.add(animation_pos),
-                max_views: 6,
+                max_views: 8,
                 ipd: 0.065,
-                focal_dist: 1.95,
+                focal_dist: 1.3, //1.95,
                 z_max: 12.0,
                 xr_fovy: babylon.projection.fov_y, //75.0,
                 xr_aspect: babylon.projection.aspect, //1.0,
@@ -202,27 +238,17 @@ function createScene(render_type) {
             let textures = cdep_compute.getRgbdTextures();
             photo_dome.texture = textures[0];
 
+            // Save image
             // if (frame === 10) {
-            //     cdep_compute.readRgbdTextures()
-            //     .then((pixels) => {
-            //         Tools.DumpData(4096, 4096, pixels, undefined, 'image/png', 'synthesized_view.png', false);
-            //     })
-            //     .catch((error) => {
-            //         console.log(error);
-            //     });
+                // cdep_compute.readRgbdTextures()
+                // .then((pixels) => {
+                //     Tools.DumpData(4096, 4096, pixels, undefined, 'image/png', 'synthesized_view.png', false);
+                // })
+                // .catch((error) => {
+                //     console.log(error);
+                // });
             // }
             frame++;
-
-            // // Calculate timing
-            // let now = performance.now();
-            // let elapsed = now - start;
-            // if (elapsed >= 2000.0) {
-            //     console.log('avg ms per frame: ' + (elapsed / frames).toFixed(2) + 'ms');
-            //     //console.log(babylon.engine.getFps().toFixed(1) + ' fps');
-            //     frames = 0;
-            //     start = now;
-            // }
-            // first = false;
         }
     });
 
@@ -249,17 +275,25 @@ onMounted(async () => {
         await babylon.engine.initAsync();
         console.log(babylon.engine.enabledExtensions);
 
+        // babylon.internal = {
+        //     device: babylon.engine._device,
+        //     cmd_encoder: babylon.engine._renderEncoder, //babylon.engine._device.createCommandEncoder(),
+        //     query_set: babylon.engine._device.createQuerySet({type: 'timestamp', count: 2})
+        // };
+
         if (babylon.engine.getCaps().supportComputeShaders) {
             createScene('WebGPU');
         }
         else {
             const gl2 = babylon.canvas.getContext('webgl2');
+            babylon.internal = {gl2: gl2};
             babylon.engine = new Engine(gl2);
             createScene('WebGL');
         }
     }
     else {
         const gl2 = babylon.canvas.getContext('webgl2');
+        babylon.internal = {gl2: gl2};
 
         // Laptops w/ integrated + discrete GPU: must use settings to 
         // force browser to use high performance GPU

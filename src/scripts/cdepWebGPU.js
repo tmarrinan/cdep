@@ -365,9 +365,14 @@ class CdepWebGPU extends CdepAbstract {
         return this.rgbd_textures;
     }
 
-    readRgbdTextures() {
-        console.log(this.rgbd_textures[0]);
-        return this.rgbd_textures[0].readPixels();
+    readRgbdTextures(options) {
+        options ??= {};
+        let x = options ? options.buffer : undefined;
+        let y = options ? options.buffer : undefined;
+        let w = options ? options.buffer : undefined;
+        let h = options ? options.buffer : undefined;
+        return this.rgbd_textures[0].readPixels(undefined, undefined, options.buffer, undefined, undefined,
+                                                options.x, options.y, options.w, options.h);
     }
 }
 

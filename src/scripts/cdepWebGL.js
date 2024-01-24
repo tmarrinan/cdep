@@ -10,9 +10,6 @@ import { Constants } from '@babylonjs/core/Engines/constants';
 
 import { CdepAbstract } from './cdepAbstract';
 
-// Must import for timer query
-import '@babylonjs/core/Engines/index';
-
 // Vertex Shader source code - render C-DEP to texture
 const cdep_vert_src = `
 #version 300 es
@@ -166,6 +163,11 @@ class CdepWebGL extends CdepAbstract {
         cdep_material.pointSize = 1;
         this.cdep_materials = [cdep_material];
 
+        const scene_camera = new UniversalCamera('rtt_scene_camera', new Vector3(0.0, 0.0, 0.0), this.rtt_scene);
+        scene_camera.layerMask = 0x2;
+        this.rtt_scene.activeCamera = scene_camera;
+
+
         this.camera = new UniversalCamera('ortho_camera', new Vector3(0.0, 0.0, 0.0), this.rtt_scene);
         this.camera.mode = Constants.ORTHOGRAPHIC_CAMERA;
         this.camera.minZ = 0.01;
@@ -174,6 +176,9 @@ class CdepWebGL extends CdepAbstract {
         this.camera.orthoRight = 0.0;
         this.camera.orthoBottom = 0.0;
         this.camera.orthoTop = 2.0 * Math.PI;
+        this.camera.layerMask = 0x1;
+
+        //this.rtt_scene.activeCamera = scene_camera;
 
         this.point_cloud_meshes = [];
         this.rgbd_target = null;
@@ -199,6 +204,7 @@ class CdepWebGL extends CdepAbstract {
         this.cdep_materials[0].setTexture('depths', this.depth_textures[0]);
         
         const point_cloud = this.createPointCloudMesh(width, height);
+        point_cloud.layerMask = 0x1;
         point_cloud.material = this.cdep_materials[0];
         this.point_cloud_meshes.push(point_cloud);
 
@@ -209,6 +215,7 @@ class CdepWebGL extends CdepAbstract {
             this.cdep_materials.push(cdep_material_clone);
 
             const point_cloud_clone = point_cloud.clone('point_cloud_' + i);
+            point_cloud_clone.layerMask = 0x1;
             point_cloud_clone.material = cdep_material_clone;
             this.point_cloud_meshes.push(point_cloud_clone);
         }
@@ -287,7 +294,8 @@ class CdepWebGL extends CdepAbstract {
         }
 
         // Render
-        this.rgbd_target.render();
+        //this.rgbd_target.render();
+        this.rtt_scene.render();
     }
 
     getRgbdTextures() {

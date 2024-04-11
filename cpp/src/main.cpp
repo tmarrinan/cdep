@@ -22,7 +22,7 @@
 #endif
 
 //#define FORMAT_DASP
-//#define FORMAT_SOS
+#define FORMAT_SOS
 #define WINDOW_TITLE "CDEP Demo"
 
 
@@ -194,14 +194,30 @@ int main(int argc, char **argv)
         //app.synthesized_position = glm::vec3(0.0, 1.70, 0.725);
         
         //app.synthesized_position = glm::vec3(-2.37, 1.66, -13.49) + glm::vec3(0.015 * cos(0.5 * t), 0.004 * cos(t), 0.3 * sin(t));
-        app.synthesized_position = glm::vec3(-2.3902531743086084, 1.6660253403880460, -13.4645635290832);
+        //app.synthesized_position = glm::vec3(-2.3902531743086084, 1.6660253403880460, -13.4645635290832);
         
         //app.synthesized_position = glm::vec3(0.0, 1.70, 0.0);
         //app.synthesized_position = glm::vec3(0.0, 1.70, 0.725) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
+        
+        glm::vec3 center = glm::vec3(0.0, 1.70, 0.725); // office
+        //glm::vec3 center = glm::vec3(0.0, 1.70, 0.0); // spheres
+        glm::vec3 position[8] = {
+            glm::vec3( 0.317500,  0.150000,  0.000000),
+            glm::vec3( 0.224506,  0.129904,  0.142500),
+            glm::vec3( 0.000000,  0.075000,  0.000000),
+            glm::vec3(-0.224506,  0.000000, -0.142500),
+            glm::vec3(-0.317500, -0.075000,  0.000000),
+            glm::vec3(-0.224506, -0.129904,  0.142500),
+            glm::vec3( 0.000000, -0.150000,  0.000000),
+            glm::vec3( 0.224506, -0.129904, -0.142500)
+        };
+        app.synthesized_position = center + position[app.fc];
+        //app.synthesized_position = center + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(0.333333 * t), 0.1425 * sin(t));
+        
         //app.plane_in_focus = 2.75 + 1.25 * cos(1.0 * t);
-        app.plane_in_focus = 5.25 + 3.5 * cos(1.0 * t);
+        //app.plane_in_focus = 5.25 + 3.5 * cos(1.0 * t);
         //printf("%.4f\n", app.plane_in_focus);
-        app.aperture = 0.031;
+        //app.aperture = 0.031;
         //app.aperture = 0.025 + 0.015 * cos(1.0 * t);
         //app.synthesized_position = glm::vec3(0.0, 1.70, 0.0) + glm::vec3(0.3175 * cos(0.5 * t), 0.15 * cos(t), 0.1425 * sin(t));
         
@@ -214,7 +230,7 @@ int main(int argc, char **argv)
         //                                                     app.synthesized_position[2]);
 
         app.fc++;
-        //if (app.fc >= num_frames) exit(EXIT_SUCCESS);
+        if (app.fc >= num_frames) exit(EXIT_SUCCESS);
 
         // Render next frame
         render();
@@ -319,35 +335,35 @@ void init()
 #else
     // C-DEP
     app.ods_format = OdsFormat::CDEP;
-    app.ods_num_views = 3; //8;
-    app.ods_max_views = 2; //6;
+    app.ods_num_views = 8;
+    app.ods_max_views = 8;
     double near = 0.01; //0.1;
     double far = 30.0; //50.0;
 
-    float cam_position1[3] = {-2.3638009325989064, 1.6626330584754445, -13.1379285788494};
-    float cam_position2[3] = {-2.3431789554542077, 1.6553537411051626, -13.8433799047119};
-    //float cam_position2[3] = {-2.3431789554542077, 1.6553537411051626, -13.9133799047119};
-    float cam_position3[3] = {-2.3902531743086084, 1.6660253403880460, -13.4645635290832};
-    initializeOdsTextures("./resrc/images/hallway_2k_camera_1", cam_position1);
-    initializeOdsTextures("./resrc/images/hallway_2k_camera_2", cam_position2);
-    initializeOdsTextures("./resrc/images/hallway_2k_camera_3", cam_position3);
+    // float cam_position1[3] = {-2.3638009325989064, 1.6626330584754445, -13.1379285788494};
+    // float cam_position2[3] = {-2.3431789554542077, 1.6553537411051626, -13.8433799047119};
+    // //float cam_position2[3] = {-2.3431789554542077, 1.6553537411051626, -13.9133799047119};
+    // float cam_position3[3] = {-2.3902531743086084, 1.6660253403880460, -13.4645635290832};
+    // initializeOdsTextures("./resrc/images/hallway_2k_camera_1", cam_position1);
+    // initializeOdsTextures("./resrc/images/hallway_2k_camera_2", cam_position2);
+    // initializeOdsTextures("./resrc/images/hallway_2k_camera_3", cam_position3);
 
-    // float cam_position1[3] = {-0.35, 1.85, 0.55};
-    // float cam_position2[3] = { 0.35, 1.55, 0.90};
-    // float cam_position3[3] = {-0.10, 1.75, 0.85};
-    // float cam_position4[3] = { 0.25, 1.70, 0.60};
-    // float cam_position5[3] = {-0.30, 1.67, 0.75};
-    // float cam_position6[3] = {-0.20, 1.60, 0.70};
-    // float cam_position7[3] = { 0.15, 1.78, 0.57};
-    // float cam_position8[3] = { 0.05, 1.82, 0.87};
-    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_1", cam_position1);
-    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_2", cam_position2);
-    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_3", cam_position3);
-    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_4", cam_position4);
-    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_5", cam_position5);
-    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_6", cam_position6);
-    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_7", cam_position7);
-    // initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_8", cam_position8);
+    float cam_position1[3] = {-0.35, 1.85, 0.55};
+    float cam_position2[3] = { 0.35, 1.55, 0.90};
+    float cam_position3[3] = {-0.10, 1.75, 0.85};
+    float cam_position4[3] = { 0.25, 1.70, 0.60};
+    float cam_position5[3] = {-0.30, 1.67, 0.75};
+    float cam_position6[3] = {-0.20, 1.60, 0.70};
+    float cam_position7[3] = { 0.15, 1.78, 0.57};
+    float cam_position8[3] = { 0.05, 1.82, 0.87};
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_1", cam_position1);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_2", cam_position2);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_3", cam_position3);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_4", cam_position4);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_5", cam_position5);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_6", cam_position6);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_7", cam_position7);
+    initializeOdsTextures("./resrc/images/ods_cdep_4k_camera_8", cam_position8);
 
     // float cam_position1[3] = {-0.35, 1.85, -0.175};
     // float cam_position2[3] = { 0.35, 1.55,  0.175};
@@ -383,7 +399,7 @@ void init()
     app.ods_projection = glm::ortho(2.0 * M_PI, 0.0, M_PI, 0.0, near, far);
 
     // Set App view modelview and projection matrices
-    app.fov = 85.0;
+    app.fov = 45.0;
     app.modelview = glm::mat4(1.0);
     //app.projection = glm::perspective(75.0 * M_PI / 180.0, (double)app.window_width / (double)app.window_height, 0.1, 100.0);
     app.projection = glm::perspective(app.fov * M_PI / 180.0, (double)app.window_width / (double)app.window_height, 0.1, 100.0);
@@ -600,19 +616,18 @@ void synthesizeOdsImage(glm::vec3& camera_position)
     glUseProgram(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    /*
+    
     int flip = 1;
     uint8_t *pixels = new uint8_t[app.ods_width * app.ods_height * 8];
     glBindTexture(GL_TEXTURE_2D, app.render_texture_color);
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     glBindTexture(GL_TEXTURE_2D, 0);
     char outname[96];
-    //snprintf(outname, 96, "synthesized_views/novel_ods_dasp_%02d.png", app.fc);
-    //snprintf(outname, 96, "synthesized_views/novel_ods_sos_%02d.png", app.fc);
-    snprintf(outname, 96, "synthesized_views/novel_ods_cdep_%d.%d_%02d.png", app.ods_num_views, app.ods_max_views, app.fc);
+    //snprintf(outname, 96, "synthesized_views/office_ods_dasp_4k_%d.png", app.fc + 1);
+    snprintf(outname, 96, "synthesized_views/office_ods_sos_4k_%d.png", app.fc + 1);
+    //snprintf(outname, 96, "synthesized_views/office_ods_cdep_%d.%d_%02d.png", app.ods_num_views, app.ods_max_views, app.fc + 1);
     iioWriteImagePng(outname, app.ods_width, app.ods_height * 2, 4, flip, pixels);
     delete[] pixels;
-    */
 }
 
 void onResize(GLFWwindow *window, int width, int height)
@@ -866,6 +881,7 @@ void createOdsPointData()
 {
     uint32_t i, j;
     uint32_t size = app.ods_width * app.ods_height;
+    //uint32_t size = app.ods_width * app.ods_height * 4;
 
     // Create a new vertex array object
     glGenVertexArrays(1, &(app.ods_vertex_array));
@@ -874,32 +890,38 @@ void createOdsPointData()
 
     // Create arrays for vertex positions and texture coordinates
     // Use randomized blocks (size = 128) of morton z-order points
-    uint32_t block_size = 512;
-    uint32_t blocks_x = app.ods_width / block_size;
-    uint32_t blocks_y = app.ods_height / block_size;
-    uint32_t *block_order = new uint32_t[blocks_x * blocks_y];
-    std::random_device rd;
-    std::mt19937 g(rd());
-    std::iota(block_order, block_order + (blocks_x * blocks_y), 0);
-    std::shuffle(block_order, block_order + (blocks_x * blocks_y), g);
+    // uint32_t block_size = 512;
+    // uint32_t blocks_x = app.ods_width / block_size;
+    // uint32_t blocks_y = app.ods_height / block_size;
+    // uint32_t *block_order = new uint32_t[blocks_x * blocks_y];
+    // std::random_device rd;
+    // std::mt19937 g(rd());
+    // std::iota(block_order, block_order + (blocks_x * blocks_y), 0);
+    // std::shuffle(block_order, block_order + (blocks_x * blocks_y), g);
     GLfloat *vertices = new GLfloat[2 * size];
     GLfloat *texcoords = new GLfloat[2 * size];
     for (j = 0; j < app.ods_height; j++)
+    //for (j = 0; j < app.ods_height * 2; j++)
     {
         for (i = 0; i < app.ods_width; i++)
+        //for (i = 0; i < app.ods_width * 2; i++)
         {
-            uint16_t bx = i % block_size;
-            uint16_t by = j % block_size;
-            uint32_t bidx = mortonZIndex(bx, by);
-            uint32_t block = blocks_x * (j / block_size) + (i / block_size);
-            uint32_t idx = (block_size * block_size) * block + bidx;
+            // uint16_t bx = i % block_size;
+            // uint16_t by = j % block_size;
+            // uint32_t bidx = mortonZIndex(bx, by);
+            // uint32_t block = blocks_x * (j / block_size) + (i / block_size);
+            // uint32_t idx = (block_size * block_size) * block + bidx;
             //uint32_t idx = (block_size * block_size) * block_order[block] + bidx;
 
             //uint32_t idx = mortonZIndex(i, j);
-            //uint32_t idx = j * app.ods_width + i;
+            uint32_t idx = j * app.ods_width + i;
+            //uint32_t idx = j * app.ods_width * 2 + i;
             
             double norm_x = (i + 0.5) / (double)app.ods_width;
             double norm_y = (j + 0.5) / (double)app.ods_height;
+            //double norm_x = (i + 0.5) / (double)(app.ods_width * 2);
+            //double norm_y = (j + 0.5) / (double)(app.ods_height * 2);
+
             double azimuth = 2.0 * M_PI * (1.0 - norm_x);
             double inclination = M_PI * norm_y;
             vertices[2 * idx + 0] = azimuth;
@@ -908,7 +930,7 @@ void createOdsPointData()
             texcoords[2 * idx + 1] = norm_y;
         }
     }
-    blockShuffle(vertices, texcoords, size, 128);
+    //blockShuffle(vertices, texcoords, size, 128);
 
     // Create buffer to store vertex positions
     GLuint vertex_position_buffer;

@@ -12,14 +12,16 @@ struct Params {
 };
 
 @group(0) @binding(0) var<uniform> params : Params;
-@group(0) @binding(1) var<storage,read_write> out_rgbd : array<u32>;
+@group(0) @binding(1) var<storage,read_write> out_rgbd_l : array<u32>;
+@group(0) @binding(2) var<storage,read_write> out_rgbd_r : array<u32>;
 
 @compute @workgroup_size(8, 8, 1)
 
 fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     if (global_id.x < params.dims.x && global_id.y < params.dims.y) {
         let pix_idx : u32 = global_id.y * params.dims.x  + global_id.x;
-        out_rgbd[pix_idx] = 0xFFF00000;
+        out_rgbd_l[pix_idx] = 0xFFF00000;
+        out_rgbd_r[pix_idx] = 0xFFF00000;
     }
 }
 `;
@@ -28,6 +30,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
 const cdep_src = `
 struct Params {
     camera_position : vec3<f32>,
+    y_rotation : f32,
     camera_ipd : f32,
     camera_focal_dist : f32,
     z_max : f32,
@@ -41,7 +44,8 @@ struct Params {
 @group(0) @binding(0) var<uniform> params : Params;
 @group(0) @binding(1) var image : texture_2d<f32>;
 @group(0) @binding(2) var depths : texture_2d<f32>;
-@group(0) @binding(3) var<storage,read_write> out_rgbd : array<atomic<u32>>;
+@group(0) @binding(3) var<storage,read_write> out_rgbd_l : array<atomic<u32>>;
+@group(0) @binding(4) var<storage,read_write> out_rgbd_r : array<atomic<u32>>;
 
 const M_PI = 3.1415926535897932384626433832795;
 const EPSILON = 0.000001;
@@ -54,7 +58,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         // Calculate projected point position (relative to original projection sphere center)
         let norm_x : f32 = (f32(global_id.x) + 0.5) / f32(dims.x);
         let norm_y : f32 = (f32(global_id.y) + 0.5) / f32(dims.y);
-        let in_azimuth : f32 = 2.0 * M_PI * (1.0 - norm_x);
+        let in_azimuth : f32 = 2.0 * M_PI * (1.0 - norm_x) + params.y_rotation;
         let in_inclination : f32 = M_PI * norm_y;
         let in_depth : f32 = textureLoad(depths, global_id.xy, 0u).r;
         let pt : vec3<f32> = vec3<f32>(in_depth * cos(in_azimuth) * sin(in_inclination),
@@ -125,7 +129,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
         if (visible_l) {
             // pixel position
             let out_x_l : u32 = u32(round(f32(dims.x) * ((2.0 * M_PI) - out_azimuth_l) / (2.0 * M_PI)));
-            let out_y_l : u32 = u32(round(f32(dims.y) * ((M_PI - out_inclination_l) / M_PI))) + dims.y;
+            let out_y_l : u32 = u32(round(f32(dims.y) * ((M_PI - out_inclination_l) / M_PI)));
 
             // pack RGB-D into uint32
             let dist_norm_l = (camera_distance_l + params.depth_hint) / params.z_max;
@@ -141,12 +145,12 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
             let px_end_l : i32 = i32(ceil(0.5 * size_ratio_l));
             for (var j : i32 = -px_start_l; j < px_end_l; j++) {
                 let f_y : i32 = i32(out_y_l) + j;
-                if (f_y >= i32(dims.y) && f_y < 2 * i32(dims.y)) {
+                if (f_y >= 0 && f_y < i32(dims.y)) {
                     for (var i : i32 = -px_start_l; i <= px_end_l; i++) {
                         let f_x : i32 = i32(out_x_l) + i;
                         if (f_x >= 0 && f_x < i32(dims.x)) {
                             let pix_idx_l : u32 = u32(f_y) * dims.x  + u32(f_x);
-                            atomicMin(&out_rgbd[pix_idx_l], rgbd_l);
+                            atomicMin(&out_rgbd_l[pix_idx_l], rgbd_l);
                         }
                     }
                 }
@@ -177,7 +181,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
                         let f_x : i32 = i32(out_x_r) + i;
                         if (f_x >= 0 && f_x < i32(dims.x)) {
                             let pix_idx_r : u32 = u32(f_y) * dims.x  + u32(f_x);
-                            atomicMin(&out_rgbd[pix_idx_r], rgbd_r);
+                            atomicMin(&out_rgbd_r[pix_idx_r], rgbd_r);
                         }
                     }
                 }
@@ -215,19 +219,24 @@ struct Params {
 };
 
 @group(0) @binding(0) var<uniform> params : Params;
-@group(0) @binding(1) var<storage,read> rgbd : array<u32>;
-@group(0) @binding(2) var out_rgba : texture_storage_2d<rgba8unorm,write>;
-@group(0) @binding(3) var out_depth : texture_storage_2d<r32float,write>;
+@group(0) @binding(1) var<storage,read> rgbd_l : array<u32>;
+@group(0) @binding(2) var<storage,read> rgbd_r : array<u32>;
+@group(0) @binding(3) var out_rgba : texture_storage_2d<rgba8unorm,write>;
+@group(0) @binding(4) var out_depth : texture_storage_2d<r32float,write>;
 
 @compute @workgroup_size(8, 8, 1)
 
 fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     if (global_id.x < params.dims.x && global_id.y < params.dims.y) {
         let pix_idx : u32 = (params.dims.y - global_id.y - 1) * params.dims.x  + global_id.x;
-        let rgba : vec4<f32> = unpackColorRgb776d12(rgbd[pix_idx]);
-        let depth : f32 = unpackDepthRgb776d12(rgbd[pix_idx]);
-        textureStore(out_rgba, global_id.xy, rgba);
-        textureStore(out_depth, global_id.xy, vec4<f32>(depth, 0.0, 0.0, 1.0));
+        let rgba_l : vec4<f32> = unpackColorRgb776d12(rgbd_l[pix_idx]);
+        let depth_l : f32 = unpackDepthRgb776d12(rgbd_l[pix_idx]);
+        let rgba_r : vec4<f32> = unpackColorRgb776d12(rgbd_r[pix_idx]);
+        let depth_r : f32 = unpackDepthRgb776d12(rgbd_r[pix_idx]);
+        textureStore(out_rgba, global_id.xy, rgba_l);
+        textureStore(out_depth, global_id.xy, vec4<f32>(depth_l, 0.0, 0.0, 1.0));
+        textureStore(out_rgba, vec2<u32>(global_id.x, global_id.y + params.dims.y), rgba_r);
+        textureStore(out_depth, global_id.xy, vec4<f32>(depth_r, 0.0, 0.0, 1.0));
     }
 }
 
@@ -247,7 +256,8 @@ class CdepWebGPU extends CdepAbstract {
         const clear_cs_info = {
             bindingsMapping: {
                 'params': { group: 0, binding: 0 },
-                'out_rgbd': { group: 0, binding: 1 }
+                'out_rgbd_l': { group: 0, binding: 1 },
+                'out_rgbd_r': { group: 0, binding: 2 }
             }
         };
         this.clear_cs = new ComputeShader('clear_compute', this.engine, {computeSource: clear_src}, clear_cs_info);
@@ -257,7 +267,8 @@ class CdepWebGPU extends CdepAbstract {
                 'params': { group: 0, binding: 0 },
                 'image': { group: 0, binding: 1 },
                 'depths': { group: 0, binding: 2 },
-                'out_rgbd': { group: 0, binding: 3 }
+                'out_rgbd_l': { group: 0, binding: 3 },
+                'out_rgbd_r': { group: 0, binding: 4 }
             }
         };
         this.cdep_cs = new ComputeShader('cdep_compute', this.engine, {computeSource: cdep_src}, cdep_cs_info);
@@ -265,9 +276,10 @@ class CdepWebGPU extends CdepAbstract {
         const rgbd_to_texture_cs_info = {
             bindingsMapping: {
                 'params': { group: 0, binding: 0 },
-                'rgbd': { group: 0, binding: 1 },
-                'out_rgba': { group: 0, binding: 2 },
-                'out_depth': { group: 0, binding: 3 }
+                'rgbd_l': { group: 0, binding: 1 },
+                'rgbd_r': { group: 0, binding: 2 },
+                'out_rgba': { group: 0, binding: 3 },
+                'out_depth': { group: 0, binding: 4 }
             }
         };
         this.rgbd_to_texture_cs = new ComputeShader('rgbd_to_texture_compute', this.engine, {computeSource: rgbd_to_texture_src},
@@ -278,6 +290,7 @@ class CdepWebGPU extends CdepAbstract {
 
         this.params = new UniformBuffer(this.engine, undefined, false, 'cdep_buffer');
         this.params.addUniform('camera_position', 3);
+        this.params.addUniform('y_rotation', 1);
         this.params.addUniform('camera_ipd', 1);
         this.params.addUniform('camera_focal_dist', 1);
         this.params.addUniform('z_max', 1);
@@ -291,18 +304,22 @@ class CdepWebGPU extends CdepAbstract {
         this.tex_params.addUniform('dims', 2);
         this.tex_params.addUniform('z_max', 1);
 
-        this.rgbd_buffer = null;
+        this.rgbd_left_buffer = null;
+        this.rgbd_right_buffer = null;
         this.rgbd_textures = [];
     }
 
     initializeOutputBuffer(width, height) {
-        this.rgbd_buffer = new StorageBuffer(this.engine, width * height * 8);
-        this.clear_params.updateUInt2('dims', width, height * 2);
+        this.rgbd_left_buffer = new StorageBuffer(this.engine, width * height * 4);
+        this.rgbd_right_buffer = new StorageBuffer(this.engine, width * height * 4);
+        this.clear_params.updateUInt2('dims', width, height);
         this.clear_params.update();
         this.clear_cs.setUniformBuffer('params', this.clear_params);
-        this.clear_cs.setStorageBuffer('out_rgbd', this.rgbd_buffer);
-        this.cdep_cs.setStorageBuffer('out_rgbd', this.rgbd_buffer);
-        this.tex_params.updateUInt2('dims', width, height * 2);
+        this.clear_cs.setStorageBuffer('out_rgbd_l', this.rgbd_left_buffer);
+        this.clear_cs.setStorageBuffer('out_rgbd_r', this.rgbd_right_buffer);
+        this.cdep_cs.setStorageBuffer('out_rgbd_l', this.rgbd_left_buffer);
+        this.cdep_cs.setStorageBuffer('out_rgbd_r', this.rgbd_right_buffer);
+        this.tex_params.updateUInt2('dims', width, height);
 
         let rgba_texture = new RawTexture(null, width, height * 2, Constants.TEXTUREFORMAT_RGBA, this.scene, false, false,
                                           Constants.TEXTURE_BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_UNSIGNED_BYTE,
@@ -311,7 +328,8 @@ class CdepWebGPU extends CdepAbstract {
                                            Constants.TEXTURE_NEAREST_SAMPLINGMODE, Constants.TEXTURETYPE_FLOAT,
                                            Constants.TEXTURE_CREATIONFLAG_STORAGE);
         this.rgbd_textures = [rgba_texture, depth_texture];
-        this.rgbd_to_texture_cs.setStorageBuffer('rgbd', this.rgbd_buffer);
+        this.rgbd_to_texture_cs.setStorageBuffer('rgbd_l', this.rgbd_left_buffer);
+        this.rgbd_to_texture_cs.setStorageBuffer('rgbd_r', this.rgbd_right_buffer);
         this.rgbd_to_texture_cs.setTexture('out_rgba', this.rgbd_textures[0], false);
         this.rgbd_to_texture_cs.setTexture('out_depth', this.rgbd_textures[1], false);
     }
@@ -322,7 +340,7 @@ class CdepWebGPU extends CdepAbstract {
         let n_groups_y = Math.ceil(this.image_dims.height / workgroup_size[1]);
 
         // Clear output buffer
-        this.clear_cs.dispatch(n_groups_x, n_groups_y * 2, 1);
+        this.clear_cs.dispatch(n_groups_x, n_groups_y, 1);
 
         // Synthesize view
         let depth_hint = 0.0;
@@ -337,6 +355,7 @@ class CdepWebGPU extends CdepAbstract {
 
             let relative_cam_position = view_params.synthesized_position.subtract(this.cam_positions[idx]);
             this.params.updateVector3('camera_position', relative_cam_position);
+            this.params.updateFloat('y_rotation', this.cam_rotations[idx]);
             this.params.updateFloat('camera_ipd', view_params.ipd);
             this.params.updateFloat('camera_focal_dist', view_params.focal_dist);
             this.params.updateFloat('z_max', view_params.z_max);
@@ -358,7 +377,7 @@ class CdepWebGPU extends CdepAbstract {
         this.tex_params.updateFloat('z_max', view_params.z_max);
         this.tex_params.update();
         this.rgbd_to_texture_cs.setUniformBuffer('params', this.tex_params);
-        this.rgbd_to_texture_cs.dispatch(n_groups_x, n_groups_y * 2, 1);
+        this.rgbd_to_texture_cs.dispatch(n_groups_x, n_groups_y, 1);
     }
 
     getRgbdTextures() {

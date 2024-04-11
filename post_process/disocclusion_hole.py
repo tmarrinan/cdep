@@ -8,10 +8,14 @@ def main():
     pixel_hole = 0.0
     projected_hole = 0.0
     
-    directory = '../cpp/synthesized_views'
-    files = sorted(os.listdir(directory))
+    base_directory = 'C:\\Users\\tmarrinan\\OneDrive - University of St. Thomas\\Publications\\0 - 2024 IMX\\ODS Tests'
+    test_directory = os.path.join(base_directory, 'Synthesized Images\\Spheres')
+    #base_directory = 'C:\\Users\\tmarrinan\\Dev\\cdep\\cpp'
+    #test_directory = os.path.join(base_directory, 'synthesized_views')
+    
+    files = sorted(os.listdir(test_directory))
     for filename in files:
-        filepath = os.path.join(directory, filename)
+        filepath = os.path.join(test_directory, filename)
         if os.path.splitext(filepath)[1] == '.png':
             do_hole = calculateOdsDisocclusionHoleArea(filepath);
             pixel_hole += do_hole['image_hole_percent']

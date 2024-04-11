@@ -6,7 +6,8 @@ from PIL import Image
 
 
 def main():
-    exr = OpenEXR.InputFile('../public/data/office_ods_2560x1200_1.5_denoise.exr')
+    filename = 'office_ods_truth_4k_3'
+    exr = OpenEXR.InputFile(f'../public/data/{filename}.exr')
     
     header = exr.header()
     dw = header['dataWindow']
@@ -43,7 +44,7 @@ def main():
     right_px = hdr2srgb(color_channels['right'], isize)
     stereo_px = np.concatenate([left_px, right_px])
     img_out = Image.fromarray(stereo_px, 'RGBA')
-    img_out.save('novel_ods_truth.png', 'PNG')
+    img_out.save(f'{filename}.png', 'PNG')
 
 
 def hdr2srgb(raw_colors, size):

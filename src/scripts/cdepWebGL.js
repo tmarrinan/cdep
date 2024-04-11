@@ -21,6 +21,7 @@ precision highp float;
 
 uniform float depth_hint;
 uniform vec3 cam_position;
+uniform float y_rotation;
 uniform float cam_ipd;
 uniform float cam_focal_dist;
 uniform float use_xr;
@@ -40,7 +41,7 @@ float sphericalPixelSize(float inclination, float dims_y);
 
 void main() {
     // Calculate projected point position (relative to projection sphere center)
-    float in_azimuth = position.x;
+    float in_azimuth = position.x + y_rotation;
     float in_inclination = position.y;
     float cam_eye = position.z; // left: +1.0, right: -1.0
 
@@ -280,6 +281,7 @@ class CdepWebGL extends CdepAbstract {
             let idx = views[i];
             this.render_list.push(this.point_cloud_meshes[idx]);
             let relative_cam_position = view_params.synthesized_position.subtract(this.cam_positions[idx]);
+            this.cdep_materials[idx].setFloat('y_rotation', this.cam_rotations[idx]);
             this.cdep_materials[idx].setVector3('cam_position', relative_cam_position);
             this.cdep_materials[idx].setFloat('cam_ipd', view_params.ipd);
             this.cdep_materials[idx].setFloat('cam_focal_dist', view_params.focal_dist);
@@ -308,7 +310,7 @@ class CdepWebGL extends CdepAbstract {
         let y = options ? options.buffer : undefined;
         let w = options ? options.buffer : undefined;
         let h = options ? options.buffer : undefined;
-        return this.rgbd_target.textures[0].readPixels(undefined, undefined, options.buffer, undefined, undefined,
+        return this.rgbd_target.textures[0].readPixels(undefined, undefined, options.buffer, true, undefined,
                                                        options.x, options.y, options.w, options.h);
     }
 }

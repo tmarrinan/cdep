@@ -67,10 +67,10 @@ void main() {
 
 
     // Set point size (1.25 seems to be a good balance between filling small holes and blurring image)
-    //gl_PointSize = 1.25;
-    float size_ratio = vertex_depth / camera_distance;
-    float size_scale = 1.1 + (0.4 - (0.16 * min(camera_distance, 2.5))); // scale ranges from 1.1 to 1.5
-    gl_PointSize = size_scale * size_ratio;
+    gl_PointSize = 1.25;
+    // float size_ratio = vertex_depth / camera_distance;
+    // float size_scale = 1.1 + (0.4 - (0.16 * min(camera_distance, 2.5))); // scale ranges from 1.1 to 1.5
+    // gl_PointSize = size_scale * size_ratio;
 
     // Set point position
     float depth_hint = 0.0075 * eye; // favor left eye image when depth's match

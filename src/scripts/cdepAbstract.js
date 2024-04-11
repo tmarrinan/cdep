@@ -10,6 +10,7 @@ class CdepAbstract {
         this.num_images = 0;
         this.image_dims = {width: 0, height: 0};
         this.cam_positions = [];
+        this.cam_rotations = [];
         this.rgba_textures = [];
         this.depth_textures = [];
         this.ready = false;
@@ -24,6 +25,7 @@ class CdepAbstract {
                 image_data.push(imageLoader.loadPngAsync(pano.color, false, this.scene));
                 image_data.push(imageLoader.loadDepthAsync(pano.depth));
                 this.cam_positions.push(pano.camera_position);
+                this.cam_rotations.push(pano.y_rotation);
             });
             Promise.all(image_data)
             .then((texture_data) => {

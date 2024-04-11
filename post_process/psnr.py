@@ -4,15 +4,18 @@ from PIL import Image
 
 
 def main():
-    directory = '../cpp/synthesized_views'
-    formats = ['novel_ods_spheres_dasp', 'novel_ods_spheres_sos', 'novel_ods_spheres_cdep_2.2', 'novel_ods_spheres_cdep_4.3',
-               'novel_ods_spheres_cdep_4.4', 'novel_ods_spheres_cdep_8.3', 'novel_ods_spheres_cdep_8.8']
+    base_directory = 'C:\\Users\\tmarrinan\\OneDrive - University of St. Thomas\\Publications\\0 - 2024 IMX\\ODS Tests'
+    test_directory = os.path.join(base_directory, 'Synthesized Images\\Spheres')
+    truth_directory = os.path.join(base_directory, 'Truth Images\\Spheres')
+    formats = ['spheres_ods_dasp_4k', 'spheres_ods_sos_4k', 'spheres_ods_cdep_4k_2.2', 'spheres_ods_cdep_4k_4.3',
+               'spheres_ods_cdep_4k_4.4', 'spheres_ods_cdep_4k_8.3', 'spheres_ods_cdep_4k_8.8']
+    truth = 'spheres_ods_truth_4k'
     for fmt in formats:
         pixel_psnr = 0.0
         sphere_psnr = 0.0
         for i in range(8):
-            filepath = os.path.join(directory, f'{fmt}_{i:02d}.png')
-            truthpath = os.path.join(directory, f'truth_ods_spheres_{i:02d}.png')
+            filepath = os.path.join(test_directory, f'{fmt}_{i+1}.png')
+            truthpath = os.path.join(truth_directory, f'{truth}_{i+1}.png')
             signal_noise = psnr(filepath, truthpath)
             pixel_psnr += signal_noise['pixel']
             sphere_psnr += signal_noise['sphere']

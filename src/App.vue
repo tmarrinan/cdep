@@ -68,7 +68,9 @@ function createScene(render_type) {
     // babylon.camera.wheelPrecision = 30;
     const desktop_user_height = babylon.user_height;
     babylon.camera = new UniversalCamera('camera', new Vector3(0.0, desktop_user_height, 0.0), babylon.scene);
-    //babylon.camera.fov = 45.0 * Math.PI / 180.0;
+    babylon.camera.fov = 45.0 * Math.PI / 180.0;
+    babylon.camera.rotation.x = 22.5 * Math.PI / 180.0;
+    babylon.camera.rotation.y = -15.0 * Math.PI / 180.0;
     babylon.camera.speed = 0.1;
     babylon.camera.attachControl(babylon.canvas, true);
     babylon.active_camera = babylon.camera;
@@ -93,90 +95,240 @@ function createScene(render_type) {
     const photo_dome = new PhotoDome('pano360', BASE_URL + 'images/photodome_start.png',
                                      {resolution: 32, size: 1000}, babylon.scene);
     photo_dome.imageMode = PhotoDome.MODE_TOPBOTTOM;
+    // const photo_dome = new PhotoDome('pano360', BASE_URL + 'images/aldrich/3k/aldrich_3k_cam7.jpg',
+    //                                  {resolution: 32, size: 1000}, babylon.scene);
+    // photo_dome.imageMode = PhotoDome.MODE_MONOSCOPIC;
     photo_dome.rotation.y = 0.5 * Math.PI;
 
     // C-DEP WebGPU / WebGL2
     let cdep_compute = (render_type === 'WebGPU') ? new CdepWebGPU(babylon.scene, babylon.engine) :
                                                     new CdepWebGL(babylon.scene, babylon.engine);
+                                                    (-0.385, 1.535, -0.230)
+    
+    // let panoramas = [
+    //     {
+    //         color: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam1.jpg',
+    //         depth: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam1.depth',
+    //         camera_position: new Vector3(0.04755, 1.61014, -0.476002)
+    //     },    
+    //     {
+    //         color: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam2.jpg',
+    //         depth: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam2.depth',
+    //         camera_position: new Vector3(-1.19718, 1.61388, -1.30315)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam3.jpg',
+    //         depth: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam3.depth',
+    //         camera_position: new Vector3(-0.987221, 1.60287, -0.663748)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam4.jpg',
+    //         depth: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam4.depth',
+    //         camera_position: new Vector3(-0.165127, 1.61669, -0.880811)
+    //     },    
+    //     {
+    //         color: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam5.jpg',
+    //         depth: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam5.depth',
+    //         camera_position: new Vector3(-0.380946, 1.60925, -0.682357)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam6.jpg',
+    //         depth: BASE_URL + 'images/aldrich/3k/aldrich_3k_cam6.depth',
+    //         camera_position: new Vector3(-0.57779, 1.61738, -1.09355)
+    //     }
+    //     // cam 7 = (-0.784444, 1.60974, -0.876628)
+    // ]
     let panoramas = [
         {
-            color: BASE_URL + 'images/ods_cdep_4k_camera_1.png',
-            depth: BASE_URL + 'images/ods_cdep_4k_camera_1.depth',
+            color: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam1.jpg',
+            depth: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam1.depth',
+            camera_position: new Vector3(0.039645, 1.61246, -0.48015),
+            y_rotation: 0.89 * Math.PI / 180.0
+        },
+        {
+            color: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam2.jpg',
+            depth: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam2.depth',
+            camera_position: new Vector3(-1.18642, 1.61615, -1.29489),
+            y_rotation: 1.44 * Math.PI / 180.0
+        },
+        {
+            color: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam3.jpg',
+            depth: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam3.depth',
+            camera_position: new Vector3(-0.979605, 1.6053, -0.66508),
+            y_rotation: -0.05 * Math.PI / 180.0
+        },
+        {
+            color: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam4.jpg',
+            depth: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam4.depth',
+            camera_position: new Vector3(-0.169842, 1.61891, -0.878886),
+            y_rotation: 0.69 * Math.PI / 180.0
+        },
+        {
+            color: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam5.jpg',
+            depth: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam5.depth',
+            camera_position: new Vector3(-0.382423, 1.61159, -0.68341),
+            y_rotation: 0.79 * Math.PI / 180.0
+        },
+        {
+            color: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam6.jpg',
+            depth: BASE_URL + 'images/aldrich/6k/aldrich_6k_cam6.depth',
+            camera_position: new Vector3(-0.576315, 1.61959, -1.08843),
+            y_rotation: 0.60 * Math.PI / 180.0
+        }
+        // cam 7 = (-0.779869, 1.61206, -0.874766)
+    ];
+    
+    /*let panoramas = [
+        {
+            color: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_1.png',
+            depth: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_1.depth',
             camera_position: new Vector3(-0.35, 1.85, 0.55)
         },
         {
-            color: BASE_URL + 'images/ods_cdep_4k_camera_2.png',
-            depth: BASE_URL + 'images/ods_cdep_4k_camera_2.depth',
+            color: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_2.png',
+            depth: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_2.depth',
             camera_position: new Vector3( 0.35, 1.55, 0.90)
         },
         {
-            color: BASE_URL + 'images/ods_cdep_4k_camera_3.png',
-            depth: BASE_URL + 'images/ods_cdep_4k_camera_3.depth',
+            color: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_3.png',
+            depth: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_3.depth',
             camera_position: new Vector3(-0.10, 1.75, 0.85)
         },
         {
-            color: BASE_URL + 'images/ods_cdep_4k_camera_4.png',
-            depth: BASE_URL + 'images/ods_cdep_4k_camera_4.depth',
+            color: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_4.png',
+            depth: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_4.depth',
             camera_position: new Vector3( 0.25, 1.70, 0.60)
         },
         {
-            color: BASE_URL + 'images/ods_cdep_4k_camera_5.png',
-            depth: BASE_URL + 'images/ods_cdep_4k_camera_5.depth',
+            color: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_5.png',
+            depth: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_5.depth',
             camera_position: new Vector3(-0.30, 1.67, 0.75)
         },
         {
-            color: BASE_URL + 'images/ods_cdep_4k_camera_6.png',
-            depth: BASE_URL + 'images/ods_cdep_4k_camera_6.depth',
+            color: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_6.png',
+            depth: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_6.depth',
             camera_position: new Vector3(-0.20, 1.60, 0.70)
         },
         {
-            color: BASE_URL + 'images/ods_cdep_4k_camera_7.png',
-            depth: BASE_URL + 'images/ods_cdep_4k_camera_7.depth',
+            color: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_7.png',
+            depth: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_7.depth',
             camera_position: new Vector3( 0.15, 1.78, 0.57)
         },
         {
-            color: BASE_URL + 'images/ods_cdep_4k_camera_8.png',
-            depth: BASE_URL + 'images/ods_cdep_4k_camera_8.depth',
+            color: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_8.png',
+            depth: BASE_URL + 'images/office/4k/office_ods_cdep_4k_camera_8.depth',
             camera_position: new Vector3( 0.05, 1.82, 0.87)
         }
-    ];
+    ];*/
+
+    // let panoramas = [
+    //     {
+    //         color: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_1.png',
+    //         depth: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_1.depth',
+    //         camera_position: new Vector3(-0.35, 1.85, -0.175)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_2.png',
+    //         depth: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_2.depth',
+    //         camera_position: new Vector3( 0.35, 1.55,  0.175)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_3.png',
+    //         depth: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_3.depth',
+    //         camera_position: new Vector3(-0.10, 1.75,  0.125)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_4.png',
+    //         depth: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_4.depth',
+    //         camera_position: new Vector3( 0.25, 1.70, -0.125)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_5.png',
+    //         depth: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_5.depth',
+    //         camera_position: new Vector3(-0.30, 1.67,  0.025)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_6.png',
+    //         depth: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_6.depth',
+    //         camera_position: new Vector3(-0.20, 1.60, -0.025)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_7.png',
+    //         depth: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_7.depth',
+    //         camera_position: new Vector3( 0.15, 1.78, -0.155)
+    //     },
+    //     {
+    //         color: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_8.png',
+    //         depth: BASE_URL + 'images/spheres/4k/spheres_ods_cdep_4k_camera_8.depth',
+    //         camera_position: new Vector3( 0.05, 1.82,  0.145)
+    //     }
+    // ];
 
     cdep_compute.initializePanoramaCollection(panoramas)
     .then((image_dims) => {
         console.log('C-DEP initialized', image_dims, cdep_compute.isReady());
 
+        /*
         // Redner performance test
-        // let num_compute = 400;
-        // let pixel_buffer = new Uint8Array(256);
-        // let start_t = performance.now();
+        let num_compute = 400;
+        let time = 0.0;
+        let pixel_buffer = new Uint8Array(256);
+        let center_pos = new Vector3(0.0, 1.70, 0.725);
+        let positions = [
+            new Vector3( 0.000000,  0.000000,  0.000000), // dummy
+            new Vector3( 0.317500,  0.150000,  0.000000),
+            new Vector3( 0.224506,  0.129904,  0.142500),
+            new Vector3( 0.000000,  0.075000,  0.000000),
+            new Vector3(-0.224506,  0.000000, -0.142500),
+            new Vector3(-0.317500, -0.075000,  0.000000),
+            new Vector3(-0.224506, -0.129904,  0.142500),
+            new Vector3( 0.000000, -0.150000,  0.000000),
+            new Vector3( 0.224506, -0.129904, -0.142500)
+        ];
+        let view_params = {
+            synthesized_position: null,
+            max_views: 8,
+            ipd: 0.065,
+            focal_dist: 1.95,
+            z_max: 12.0//,
+            //xr_fovy: 60 * Math.PI / 180.0,
+            //xr_aspect: 1.0,
+            //xr_view_dir: new Vector3(0.0, 0.0, 1.0)
+        };
 
-        // let center_pos = new Vector3(0.0, 1.70, 0.725);
-        // let time = 0.0;
-        // for (let i = 0; i < num_compute; i++) {
-        //     let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(time), 0.1425 * Math.sin(time));
-        //     let view_params = {
-        //         synthesized_position: center_pos.add(animation_pos),
-        //         max_views: 8,
-        //         ipd: 0.065,
-        //         focal_dist: 1.95,
-        //         z_max: 12.0,
-        //         xr_fovy: babylon.projection.fov_y, //75.0,
-        //         xr_aspect: babylon.projection.aspect, //1.0,
-        //         xr_view_dir: new Vector3(0.0, 0.0, -1.0)
-        //     };
-        //     cdep_compute.synthesizeView(view_params);
-        //     time += 0.011111;
-        // }
 
-        // cdep_compute.readRgbdTextures({buffer: pixel_buffer, x: 2048, y: 1024, w: 1, h: 1})
-        // .then((pixels) => {
-        //     let end_t = performance.now();
-        //     console.log('average compute time: ' + ((end_t - start_t) / num_compute).toFixed(2) + 'ms');
-        //     console.log(pixels);
-        // })
-        // .catch((error) => {
-        //     console.log(error);
-        // });
+        let start_t = performance.now();
+
+        for (let i = 0; i < num_compute; i++) {
+            //let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time), 0.15 * Math.cos(0.333333 * time), 0.1425 * Math.sin(time));
+            let animation_pos = positions[i];
+            view_params.synthesized_position = center_pos.add(animation_pos);
+            cdep_compute.synthesizeView(view_params);
+            time += 0.0111111;
+
+            // Save image
+            cdep_compute.readRgbdTextures()
+            .then((pixels) => {
+                Tools.DumpData(4096, 4096, pixels, undefined, 'image/png', 'office_ods_cdep_8-8_4k_' + i + '.png', false);
+            })
+            .catch((error) => {
+                console.log(error);
+            });
+        }
+
+        cdep_compute.readRgbdTextures({buffer: pixel_buffer, x: image_dims.width / 2, y: image_dims.height / 2, w: 1, h: 1})
+        .then((pixels) => {
+            let end_t = performance.now();
+            console.log('average compute time: ' + ((end_t - start_t) / num_compute).toFixed(2) + 'ms');
+            console.log(pixels);
+
+            let textures = cdep_compute.getRgbdTextures();
+            photo_dome.texture = textures[0];
+        })
+        .catch((error) => {
+            console.log(error);
+        });
+        */
     })
     .catch((error) => {
         console.log(error);
@@ -215,21 +367,24 @@ function createScene(render_type) {
         if (cdep_compute.isReady()) {
             // Synthesize new view
             let camera_data = babylon.active_camera.getForwardRay();
-            let center_pos = new Vector3(0.0, 0.0, 0.725);
+            //let center_pos = new Vector3(0.0, 0.0, 0.725);
+            //let center_pos = new Vector3(0.0, 0.0, 0.0);
+            let center_pos = new Vector3(-0.779869, 1.61206, -0.874766); //new Vector3(-0.784444, 1.60974, -0.876628)
             // let animation_pos = new Vector3(0.3175 * Math.cos(0.5 * time),
             //                                 babylon.user_height + 0.15 * Math.cos(time),
             //                                 0.1425 * Math.sin(time));
-            let animation_pos = new Vector3(camera_data.origin.x, camera_data.origin.y, -camera_data.origin.z);
+            //let animation_pos = new Vector3(camera_data.origin.x, camera_data.origin.y, -camera_data.origin.z);
+            let animation_pos = new Vector3(0, 0, 0);
 
             //let time_query = babylon.engine.startTimeQuery();
             let view_params = {
                 synthesized_position: center_pos.add(animation_pos),
-                max_views: 8,
-                ipd: 0.065,
-                focal_dist: 1.3, //1.95,
+                max_views: 6, //8,
+                ipd: 0.005,//0.065,
+                focal_dist: 1.95, // 1.3
                 z_max: 12.0,
-                xr_fovy: babylon.projection.fov_y, //75.0,
-                xr_aspect: babylon.projection.aspect, //1.0,
+                xr_fovy: babylon.projection.fov_y, //60 * Math.PI / 180.0, //babylon.projection.fov_y,
+                xr_aspect: babylon.projection.aspect,
                 xr_view_dir: new Vector3(camera_data.direction.x, camera_data.direction.y, -camera_data.direction.z)
             };
             cdep_compute.synthesizeView(view_params);
@@ -267,7 +422,7 @@ function getCameraFovAspect(camera) {
 onMounted(async () => {
     babylon.canvas = document.getElementById('gpu-canvas');
 
-    let force_gl = true;
+    let force_gl = false;//true;
     let webgpu_supported = await WebGPUEngine.IsSupportedAsync;
 
     if (webgpu_supported && !force_gl) {

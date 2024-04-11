@@ -8,8 +8,12 @@ from PIL import Image
 
 
 def main():
-    output_name = 'truth_ods_spheres_07'
-    exr = OpenEXR.InputFile('../public/data/spheres_truth_7.exr')
+    directory = 'C:/Users/tmarrinan/OneDrive - University of St. Thomas/360 Photos'
+    output_name = 'cam6'
+    exr = OpenEXR.InputFile(directory + '/cam6.exr')
+    
+    #output_name = 'office_ods_truth_1'
+    #exr = OpenEXR.InputFile('../public/data/office_ods_truth_1.exr')
     
     header = exr.header()
     dw = header['dataWindow']
@@ -19,22 +23,24 @@ def main():
     #far = cam_data['far']
     near = 0.1
     far = 50.0
-    print(near, far)
+    print(f'{isize[1]}x{isize[0]}')
+    print(f'near: {near}, far: {far}')
     
     color_channels = {}
     depth_channel = {}
     for c in header['channels']:
+        print(c)
         channel_name = ''
         color = ''
-        if c == 'R' or c == 'G' or c == 'B':
+        if c == 'R' or c == 'G' or c == 'B' or c == 'Image.R' or c == 'Image.G' or c == 'Image.B':
             channel_name = 'DEFAULT'
-            color = c
+            color = c[-1]
         elif len(c) > 8 and c[:6] == 'Image.' and (c[-2:] == '.R' or c[-2:] == '.G' or c[-2:] == '.B'):
             channel_name = c[6:-2]
             color = c[-1:]
-        elif c == 'Z':
+        elif c == 'Z' or c == 'Depth.V':
             channel_name = 'DEFAULT'
-            color = c
+            color = 'Z'
         elif len(c) > 8 and c[:6] == 'Depth.' and c[-2:] == '.V':
             channel_name = c[6:-2]
             color = 'Z'
@@ -56,15 +62,24 @@ def main():
                     color_channels[channel_name] = {'R': None, 'G': None, 'B': None}
                 color_channels[channel_name][color] = px_array
     exr.close()
+    print('Finished reading EXR file')
     
     for view in color_channels:
-        col_pixels = hdr2srgb(color_channels[view], isize)
-        col_img = Image.fromarray(col_pixels, 'RGBA')
-        col_img.save(f'{output_name}{view}.png', 'PNG')
+        print(view)
+        #col_pixels = hdr2srgb(color_channels[view], isize)
+        #col_img = Image.fromarray(col_pixels, 'RGBA')
+        #col_img.save(f'{output_name}{view}.png', 'PNG')
     
-        """
+        
         depth_channel[view].astype(np.float32).tofile(f'{output_name}{view}.depth')
         
+        d_min = np.min(depth_channel[view])
+        d_max = np.max(depth_channel[view])
+        depth_gray = 65535.0 * ((depth_channel[view] - d_min) / (d_max - d_min))
+        img = Image.fromarray(depth_gray.astype(np.uint16))
+        img.save(f'{output_name}{view}_depth.png', 'PNG')
+        
+        """
         depth_u16 = depth_channel[view].flatten();
         depth_u16 = np.piecewise(depth_u16, [depth_u16 < far, depth_u16 > far], [lambda d: 1.0 - (((1.0/d) - (1.0/near)) / ((1.0/far) - (1.0/near))), lambda d: 0.0])
         depth_u16 *= 65535.0
